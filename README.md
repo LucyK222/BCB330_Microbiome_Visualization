@@ -8,3 +8,5 @@ Krona Chart Ver1:
 3. showing phylum, genus and species
 
 4. can choose threshold for subsetting genus and species
+
+5. https://observablehq.com/@d3/zoomable-sunburst
