@@ -1,0 +1,450 @@
+{
+  "name": "root",
+  "children": [
+    {
+      "name": "Actinobacteria",
+      "percentage": 0.01943064753495217,
+      "children": [
+        {
+          "name": "Other Genera",
+          "percentage": 0.01793598233995585,
+          "children": [
+            {
+              "name": "Other Species",
+              "value": 687,
+              "percentage": 0.015797461368653423
+            },
+            {
+              "name": "Unclassified Species",
+              "value": 93,
+              "percentage": 0.0021385209713024283
+            }
+          ]
+        },
+        {
+          "name": "Unclassified Genera",
+          "percentage": 0.0014946651949963208,
+          "children": [
+            {
+              "name": "Other Species",
+              "value": 6,
+              "percentage": 0.0001379690949227373
+            },
+            {
+              "name": "Unclassified Species",
+              "value": 59,
+              "percentage": 0.0013566961000735834
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Bacteroidetes",
+      "percentage": 0.10391372332597498,
+      "children": [
+        {
+          "name": "Alistipes",
+          "percentage": 0.015268579838116261,
+          "children": [
+            {
+              "name": "Other Species",
+              "value": 417,
+              "percentage": 0.009588852097130243
+            },
+            {
+              "name": "Unclassified Species",
+              "value": 247,
+              "percentage": 0.005679727740986019
+            }
+          ]
+        },
+        {
+          "name": "Bacteroides",
+          "percentage": 0.05176140544518028,
+          "children": [
+            {
+              "name": "Bacteroides sartorii",
+              "value": 1019,
+              "percentage": 0.023431751287711553
+            },
+            {
+              "name": "Other Species",
+              "value": 979,
+              "percentage": 0.022511957321559972
+            },
+            {
+              "name": "Unclassified Species",
+              "value": 253,
+              "percentage": 0.005817696835908756
+            }
+          ]
+        },
+        {
+          "name": "Other Genera",
+          "percentage": 0.02626011773362767,
+          "children": [
+            {
+              "name": "Other Species",
+              "value": 883,
+              "percentage": 0.020304451802796174
+            },
+            {
+              "name": "Unclassified Species",
+              "value": 259,
+              "percentage": 0.005955665930831494
+            }
+          ]
+        },
+        {
+          "name": "Unclassified Genera",
+          "percentage": 0.010623620309050773,
+          "children": [
+            {
+              "name": "Other Species",
+              "value": 70,
+              "percentage": 0.0016096394407652686
+            },
+            {
+              "name": "Unclassified Species",
+              "value": 392,
+              "percentage": 0.009013980868285504
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Firmicutes",
+      "percentage": 0.7316731052244297,
+      "children": [
+        {
+          "name": "Anaerotruncus",
+          "percentage": 0.019246688741721852,
+          "children": [
+            {
+              "name": "Anaerotruncus sp. G3(2012)",
+              "value": 770,
+              "percentage": 0.017706033848417953
+            },
+            {
+              "name": "Other Species",
+              "value": 65,
+              "percentage": 0.0014946651949963208
+            },
+            {
+              "name": "Unclassified Species",
+              "value": 2,
+              "percentage": 4.59896983075791e-05
+            }
+          ]
+        },
+        {
+          "name": "Clostridium",
+          "percentage": 0.05068064753495217,
+          "children": [
+            {
+              "name": "Clostridium sp. ASF502",
+              "value": 257,
+              "percentage": 0.005909676232523915
+            },
+            {
+              "name": "Other Species",
+              "value": 1384,
+              "percentage": 0.03182487122884474
+            },
+            {
+              "name": "Unclassified Species",
+              "value": 152,
+              "percentage": 0.003495217071376012
+            },
+            {
+              "name": "uncultured Clostridium sp.",
+              "value": 411,
+              "percentage": 0.009450883002207505
+            }
+          ]
+        },
+        {
+          "name": "Dorea",
+          "percentage": 0.019752575423105226,
+          "children": [
+            {
+              "name": "Dorea sp. 5-2",
+              "value": 689,
+              "percentage": 0.015843451066961
+            },
+            {
+              "name": "Other Species",
+              "value": 134,
+              "percentage": 0.0030813097866077997
+            },
+            {
+              "name": "Unclassified Species",
+              "value": 36,
+              "percentage": 0.0008278145695364238
+            }
+          ]
+        },
+        {
+          "name": "Eubacterium",
+          "percentage": 0.026811994113318617,
+          "children": [
+            {
+              "name": "Eubacterium plexicaudatum",
+              "value": 575,
+              "percentage": 0.013222038263428992
+            },
+            {
+              "name": "Eubacterium sp. 14-2",
+              "value": 265,
+              "percentage": 0.006093635025754231
+            },
+            {
+              "name": "Other Species",
+              "value": 280,
+              "percentage": 0.0064385577630610745
+            },
+            {
+              "name": "Unclassified Species",
+              "value": 46,
+              "percentage": 0.0010577630610743194
+            }
+          ]
+        },
+        {
+          "name": "Lachnoclostridium",
+          "percentage": 0.010623620309050773,
+          "children": [
+            {
+              "name": "Other Species",
+              "value": 424,
+              "percentage": 0.00974981604120677
+            },
+            {
+              "name": "Unclassified Species",
+              "value": 38,
+              "percentage": 0.000873804267844003
+            }
+          ]
+        },
+        {
+          "name": "Oscillibacter",
+          "percentage": 0.06815673289183223,
+          "children": [
+            {
+              "name": "Oscillibacter sp. 1-3",
+              "value": 1796,
+              "percentage": 0.04129874908020603
+            },
+            {
+              "name": "Oscillibacter valericigenes",
+              "value": 198,
+              "percentage": 0.004552980132450331
+            },
+            {
+              "name": "Other Species",
+              "value": 765,
+              "percentage": 0.017591059602649006
+            },
+            {
+              "name": "Unclassified Species",
+              "value": 205,
+              "percentage": 0.004713944076526858
+            }
+          ]
+        },
+        {
+          "name": "Other Genera",
+          "percentage": 0.1076158940397351,
+          "children": [
+            {
+              "name": "Flavonifractor plautii",
+              "value": 222,
+              "percentage": 0.00510485651214128
+            },
+            {
+              "name": "Other Species",
+              "value": 3585,
+              "percentage": 0.08243653421633554
+            },
+            {
+              "name": "Pseudoflavonifractor capillosus",
+              "value": 309,
+              "percentage": 0.007105408388520971
+            },
+            {
+              "name": "Unclassified Species",
+              "value": 564,
+              "percentage": 0.012969094922737307
+            }
+          ]
+        },
+        {
+          "name": "Roseburia",
+          "percentage": 0.023569720382634288,
+          "children": [
+            {
+              "name": "Other Species",
+              "value": 670,
+              "percentage": 0.015406548933039
+            },
+            {
+              "name": "Unclassified Species",
+              "value": 355,
+              "percentage": 0.00816317144959529
+            }
+          ]
+        },
+        {
+          "name": "Ruminiclostridium",
+          "percentage": 0.009082965415746873,
+          "children": [
+            {
+              "name": "Other Species",
+              "value": 117,
+              "percentage": 0.0026903973509933773
+            },
+            {
+              "name": "Ruminiclostridium sp. KB18",
+              "value": 272,
+              "percentage": 0.006254598969830758
+            },
+            {
+              "name": "Unclassified Species",
+              "value": 6,
+              "percentage": 0.0001379690949227373
+            }
+          ]
+        },
+        {
+          "name": "Unclassified Genera",
+          "percentage": 0.3961322663723326,
+          "children": [
+            {
+              "name": "Firmicutes bacterium ASF500",
+              "value": 1220,
+              "percentage": 0.028053715967623252
+            },
+            {
+              "name": "Firmicutes bacterium CAG:114",
+              "value": 247,
+              "percentage": 0.005679727740986019
+            },
+            {
+              "name": "Lachnospiraceae bacterium 10-1",
+              "value": 814,
+              "percentage": 0.018717807211184694
+            },
+            {
+              "name": "Lachnospiraceae bacterium 28-4",
+              "value": 1032,
+              "percentage": 0.023730684326710817
+            },
+            {
+              "name": "Lachnospiraceae bacterium 3-2",
+              "value": 712,
+              "percentage": 0.016372332597498162
+            },
+            {
+              "name": "Lachnospiraceae bacterium A2",
+              "value": 955,
+              "percentage": 0.02196008094186902
+            },
+            {
+              "name": "Other Species",
+              "value": 2976,
+              "percentage": 0.0684326710816777
+            },
+            {
+              "name": "Ruminococcaceae bacterium D16",
+              "value": 514,
+              "percentage": 0.01181935246504783
+            },
+            {
+              "name": "Unclassified Species",
+              "value": 8757,
+              "percentage": 0.2013658940397351
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Other Phyla",
+      "percentage": 0.10768487858719646,
+      "children": [
+        {
+          "name": "Other Genera",
+          "percentage": 0.009197939661515822,
+          "children": [
+            {
+              "name": "Other Species",
+              "value": 345,
+              "percentage": 0.007933222958057396
+            },
+            {
+              "name": "Unclassified Species",
+              "value": 55,
+              "percentage": 0.0012647167034584253
+            }
+          ]
+        },
+        {
+          "name": "Unclassified Genera",
+          "percentage": 0.09848693892568064,
+          "children": [
+            {
+              "name": "Other Species",
+              "value": 218,
+              "percentage": 0.005012877115526122
+            },
+            {
+              "name": "Unclassified Species",
+              "value": 4065,
+              "percentage": 0.09347406181015452
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Proteobacteria",
+      "percentage": 0.03729764532744665,
+      "children": [
+        {
+          "name": "Other Genera",
+          "percentage": 0.02975533480500368,
+          "children": [
+            {
+              "name": "Other Species",
+              "value": 980,
+              "percentage": 0.02253495217071376
+            },
+            {
+              "name": "Unclassified Species",
+              "value": 314,
+              "percentage": 0.007220382634289919
+            }
+          ]
+        },
+        {
+          "name": "Unclassified Genera",
+          "percentage": 0.007542310522442973,
+          "children": [
+            {
+              "name": "Other Species",
+              "value": 84,
+              "percentage": 0.0019315673289183224
+            },
+            {
+              "name": "Unclassified Species",
+              "value": 244,
+              "percentage": 0.005610743193524651
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

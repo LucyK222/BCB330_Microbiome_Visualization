@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Krona Demo</title>
+
+    <!-- Load D3 -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+<h2>Krona Example</h2>
+
+<!-- Where the chart will be inserted -->
+<div id="chart"></div>
+
+<div id="tooltip" style="
+    position: absolute;
+    padding: 5px 8px;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    font-size: 10px;
+    border-radius: 4px;
+    pointer-events: none;
+    opacity: 0;
+"></div>
+
+<!-- Load your JS code -->
+<script src="javascript/krona.js"></script> <!-- this line is basically running the main.js code -->
+
+
+</body>
+</html>
+
