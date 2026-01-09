@@ -8,8 +8,6 @@ fetch("./data/taxa.json")
     })
     .catch(err => console.error("Failed to load JSON:", err));
 
-
-
 // -----------------------------
 // KRONA CHART FUNCTION
 // -----------------------------
