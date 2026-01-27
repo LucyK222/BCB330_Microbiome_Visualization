@@ -41,7 +41,10 @@ function drawKrona(data) {
         .attr("viewBox", [-width / 2, -height / 2, width, width])
         .style("font", "4px sans-serif");
 
-    const path = svg.append("g")
+    // Add a zoomable group
+    const zoomGroup = svg.append("g");
+
+    const path = zoomGroup.append("g")
         .selectAll("path")
         .data(root.descendants().slice(1))
         .join("path")
@@ -81,7 +84,7 @@ function drawKrona(data) {
         .style("cursor", "pointer")
         .on("click", clicked);
 
-    const label = svg.append("g")
+    const label = zoomGroup.append("g")
         .attr("pointer-events", "none")
         .attr("text-anchor", "middle")
         .style("user-select", "none")
@@ -93,7 +96,7 @@ function drawKrona(data) {
         .attr("transform", d => labelTransform(d.current))
         .text(d => d.data.name);
 
-    const parent = svg.append("circle")
+    const parent = zoomGroup.append("circle")
         .datum(root)
         .attr("r", radius)
         .attr("fill", "none")
@@ -145,6 +148,14 @@ function drawKrona(data) {
         const y = (d.y0 + d.y1) / 2 * radius;
         return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
     }
+
+    const zoom = d3.zoom()
+        .scaleExtent([0.5, 10])   // min zoom, max zoom
+        .on("zoom", (event) => {
+            zoomGroup.attr("transform", event.transform);
+        });
+
+    svg.call(zoom);
 
     return svg.node();
 }
