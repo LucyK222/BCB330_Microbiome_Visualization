@@ -1,5 +1,5 @@
 // set dimensions
-var margin = {top: 10, right: 30, bottom: 120, left: 60},
+var margin = {top: 10, right: 30, bottom: 160, left: 80},
     width = 900 - margin.left - margin.right,
     height = 500 - margin.top - margin.bottom;
 
@@ -35,7 +35,18 @@ d3.csv("data/violin_Dorea_sp_5_2.csv").then(function(data) {
     var y = d3.scaleLinear()
         .domain([0, d3.max(data, d => d.RPKM) * 1.1]) // leave some space on top
         .range([height, 0]);
-    svg.append("g").call(d3.axisLeft(y));
+    svg.append("g")
+        .call(d3.axisLeft(y))
+        .append("text")
+        .attr("transform", "rotate(-90)")
+        .attr("y", -margin.left + 15)
+        .attr("x", -height / 2)
+        .attr("dy", "1em")
+        .style("text-anchor", "middle")
+        .style("fill", "black")
+        .style("font-size", "12px")
+        .style("font-weight", "bold")
+        .text("RPKM");
 
     // histogram generator
     var histogram = d3.histogram()
