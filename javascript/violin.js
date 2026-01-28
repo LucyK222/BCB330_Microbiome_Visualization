@@ -52,6 +52,23 @@ d3.csv("data/violin_Dorea_sp_5_2.csv").then(function(data) {
         })
         .entries(data);
 
+    // Compute boxplot stats
+    var boxStats = d3.nest()
+        .key(d => d.superpathway)
+        .rollup(function(d) {
+            const values = d.map(g => g.RPKM).sort(d3.ascending);
+
+            return {
+                q1: d3.quantile(values, 0.25),
+                median: d3.quantile(values, 0.5),
+                q3: d3.quantile(values, 0.75),
+                min: d3.min(values),
+                max: d3.max(values)
+            };
+        })
+        .entries(data);
+
+
     // max number of values in a bin
     var maxNum = 0;
     sumstat.forEach(function(d){
@@ -81,5 +98,62 @@ d3.csv("data/violin_Dorea_sp_5_2.csv").then(function(data) {
             .y(d => y(d.x0))
             .curve(d3.curveCatmullRom)
         );
+
+    // draw box
+    var boxWidth = x.bandwidth() * 0.15;
+
+    svg.selectAll("boxplot")
+        .data(boxStats)
+        .enter()
+        .append("rect")
+        .attr("x", d => x(d.key) + x.bandwidth()/2 - boxWidth/2)
+        .attr("width", boxWidth)
+        .attr("y", d => y(d.value.q3))
+        .attr("height", d => y(d.value.q1) - y(d.value.q3))
+        .style("fill", "black")
+        .style("fill-opacity", 0.05)
+        .style("stroke", "black");
+
+    svg.selectAll("medianLine")
+        .data(boxStats)
+        .enter()
+        .append("line")
+        .attr("x1", d => x(d.key) + x.bandwidth()/2 - boxWidth/2)
+        .attr("x2", d => x(d.key) + x.bandwidth()/2 + boxWidth/2)
+        .attr("y1", d => y(d.value.median))
+        .attr("y2", d => y(d.value.median))
+        .style("stroke", "black")
+        .style("stroke-width", 2);
+
+    svg.selectAll("whisker")
+        .data(boxStats)
+        .enter()
+        .append("line")
+        .attr("x1", d => x(d.key) + x.bandwidth()/2)
+        .attr("x2", d => x(d.key) + x.bandwidth()/2)
+        .attr("y1", d => y(d.value.min))
+        .attr("y2", d => y(d.value.max))
+        .style("stroke", "black");
+
+    svg.selectAll("whiskerTop")
+        .data(boxStats)
+        .enter()
+        .append("line")
+        .attr("x1", d => x(d.key) + x.bandwidth()/2 - boxWidth/4)
+        .attr("x2", d => x(d.key) + x.bandwidth()/2 + boxWidth/4)
+        .attr("y1", d => y(d.value.max))
+        .attr("y2", d => y(d.value.max))
+        .style("stroke", "black");
+
+    svg.selectAll("whiskerBottom")
+        .data(boxStats)
+        .enter()
+        .append("line")
+        .attr("x1", d => x(d.key) + x.bandwidth()/2 - boxWidth/4)
+        .attr("x2", d => x(d.key) + x.bandwidth()/2 + boxWidth/4)
+        .attr("y1", d => y(d.value.min))
+        .attr("y2", d => y(d.value.min))
+        .style("stroke", "black");
+
 
 });
