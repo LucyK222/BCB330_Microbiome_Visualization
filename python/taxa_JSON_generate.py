@@ -4,6 +4,7 @@ import json
 # ---- 1. Load your processed file ----
 df = pd.read_csv("../data/taxa_classifications_splited.tsv", sep="\t")
 
+# make the NA entries "Unclassified XXX"
 df["Class"] = df["Class"].replace("", pd.NA).fillna("Unclassified Classes")
 df["Order"] = df["Order"].replace("", pd.NA).fillna("Unclassified Orders")
 df["Family"] = df["Family"].replace("", pd.NA).fillna("Unclassified Family")
@@ -11,10 +12,10 @@ df["Genus"] = df["Genus"].replace("", pd.NA).fillna("Unclassified Genera")
 df["Species"] = df["Species"].replace("", pd.NA).fillna("Unclassified Species")
 
 # Keep only classified entries (Status == "C") and with genus information
-# TODO: directly dropping the "U" since there's nearly half of them, which would make the chart ugly
-# TODO: keep only kingdom bacteria
+
 # TODO: should unclassified also be in the denominator?
-# TODO: inside the unclassified, there might also be classified lower taxa
+
+# directly dropping the "U" and keep only Kingdom Bacteria
 df = df[(df["Status"] == "C") & (df["Kingdom"] == "Bacteria")]
 total_reads = len(df)
 
@@ -47,6 +48,7 @@ summary = (
 )
 
 summary["percentage"] = summary["count"] / summary["count"].sum()
+
 # ---- 5. Convert to hierarchical JSON ----
 def build_hierarchy(df):
     hierarchy = {"name": "root", "children": []}

@@ -3,10 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>BCB330 Microbiome Visualization</title>
-
-  <!-- Load D3 v7 only (works for both charts) -->
   <script src="https://d3js.org/d3.v7.min.js"></script>
-
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -30,6 +27,35 @@
 <!-- ── KRONA PANEL ── -->
 <div id="panel-krona" class="tab-panel">
   <div class="panel-title">Taxonomic Composition (Krona)</div>
+
+  <!-- Sliders -->
+  <div class="slider-panel">
+    <div class="slider-group">
+      <label>Top <span id="val-phylum">10</span> Phyla</label>
+      <input type="range" id="slider-phylum" min="1" max="50" value="10">
+    </div>
+    <div class="slider-group">
+      <label>Top <span id="val-class">5</span> Classes</label>
+      <input type="range" id="slider-class" min="1" max="30" value="5">
+    </div>
+    <div class="slider-group">
+      <label>Top <span id="val-order">5</span> Orders</label>
+      <input type="range" id="slider-order" min="1" max="50" value="5">
+    </div>
+    <div class="slider-group">
+      <label>Top <span id="val-family">5</span> Families</label>
+      <input type="range" id="slider-family" min="1" max="50" value="5">
+    </div>
+    <div class="slider-group">
+      <label>Top <span id="val-genus">10</span> Genera</label>
+      <input type="range" id="slider-genus" min="1" max="100" value="10">
+    </div>
+    <div class="slider-group">
+      <label>Top <span id="val-species">20</span> Species</label>
+      <input type="range" id="slider-species" min="1" max="200" value="20">
+    </div>
+  </div>
+
   <div id="chart"></div>
 </div>
 
@@ -40,25 +66,24 @@
 ════════════════════════════════════════════ -->
 <script>
   function switchTab(name, btn) {
-    // hide all panels
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-
     document.getElementById('panel-' + name).classList.add('active');
     btn.classList.add('active');
 
-    // lazy-init charts on first open
     if (name === 'violin' && !window._violinLoaded) { drawViolin(); window._violinLoaded = true; }
     if (name === 'krona'  && !window._kronaLoaded)  {
-      fetch("./data/taxa.json")
+      fetch("./data/taxa_complete.json")
               .then(r => r.json())
-              .then(data => { document.getElementById("chart").appendChild(drawKrona(data)); })
+              .then(data => {
+                window._kronaData = data;  // cache the full unfiltered tree
+                rebuildKrona();
+              })
               .catch(err => console.error("Failed to load taxa.json:", err));
       window._kronaLoaded = true;
     }
   }
 
-  // Draw violin on page load (it's the default tab)
   window.addEventListener('DOMContentLoaded', () => {
     drawViolin();
     window._violinLoaded = true;
@@ -66,7 +91,98 @@
 </script>
 
 <!-- ════════════════════════════════════════════
-     VIOLIN  (adapted from violin.js — D3 v7)
+     KRONA SLIDERS + FILTERING
+════════════════════════════════════════════ -->
+<script>
+  // Read current slider values
+  function getTopN() {
+    return {
+      phylum:  +document.getElementById('slider-phylum').value,
+      class:   +document.getElementById('slider-class').value,
+      order:   +document.getElementById('slider-order').value,
+      family:  +document.getElementById('slider-family').value,
+      genus:   +document.getElementById('slider-genus').value,
+      species: +document.getElementById('slider-species').value,
+    };
+  }
+
+  // Wire up sliders — update label and redraw on change
+  ['phylum','class','order','family','genus','species'].forEach(level => {
+    const slider = document.getElementById('slider-' + level);
+    const label  = document.getElementById('val-' + level);
+    slider.addEventListener('input', () => {
+      label.textContent = slider.value;
+      if (window._kronaData) rebuildKrona();
+    });
+  });
+
+  // Clear chart div and redraw with current slider settings
+  function rebuildKrona() {
+    const container = document.getElementById('chart');
+    container.innerHTML = '';
+    const filtered = filterTree(window._kronaData, getTopN());
+    container.appendChild(drawKrona(filtered));
+  }
+
+  // ── Tree filtering ──────────────────────────────────────────────
+  // Full tree depth:  root(0) → Phylum(1) → Class(2) → Order(3) → Family(4) → Genus(5) → Species(6)
+  //
+  // Phyla are always shown in full (no top-N limit).
+  // For every other level, we keep the top-N children by total read count
+  // and merge the rest into a single "Other X" node.
+
+  function nodeValue(node) {
+    if (node.value !== undefined) return node.value;
+    return (node.children || []).reduce((s, c) => s + nodeValue(c), 0);
+  }
+
+  function filterChildren(children, topN, otherLabel) {
+    if (!children || children.length === 0) return [];
+    const sorted = [...children].sort((a, b) => nodeValue(b) - nodeValue(a));
+    const kept = sorted.slice(0, topN);
+    const rest = sorted.slice(topN);
+    if (rest.length > 0) {
+      const otherValue = rest.reduce((s, c) => s + nodeValue(c), 0);
+      const otherPct   = rest.reduce((s, c) => s + (c.percentage || 0), 0);
+      kept.push({ name: otherLabel, value: otherValue, percentage: otherPct });
+    }
+    return kept;
+  }
+
+  function filterTree(root, topN) {
+    // depth → { limit, otherLabel }
+    // depth 1 = Phylum:  no limit (null)
+    // depth 2 = Class,  depth 3 = Order,  depth 4 = Family,
+    // depth 5 = Genus,  depth 6 = Species
+    const config = {
+      1: { limit: topN.phylum,  label: "Other Phyla"    },
+      2: { limit: topN.class,   label: "Other Classes"   },
+      3: { limit: topN.order,   label: "Other Orders"    },
+      4: { limit: topN.family,  label: "Other Families"  },
+      5: { limit: topN.genus,   label: "Other Genera"    },
+      6: { limit: topN.species, label: "Other Species"   },
+    };
+
+    function walk(node, depth) {
+      if (!node.children) return { ...node };  // leaf node
+
+      let children = node.children.map(c => walk(c, depth + 1));
+
+      const cfg = config[depth + 1];  // config for children's level
+      if (cfg) {
+        children = filterChildren(children, cfg.limit, cfg.label);
+      }
+
+      const pct = children.reduce((s, c) => s + (c.percentage || 0), 0);
+      return { ...node, percentage: pct, children };
+    }
+
+    return walk(root, 0);
+  }
+</script>
+
+<!-- ════════════════════════════════════════════
+     VIOLIN  (D3 v7)
 ════════════════════════════════════════════ -->
 <script>
   function drawViolin() {
@@ -84,7 +200,6 @@
     d3.csv("data/violin_Dorea_sp_5_2.csv").then(function(data) {
       data.forEach(d => { d.RPKM = +d.RPKM; });
 
-      // X scale
       var x = d3.scaleBand()
               .range([0, width])
               .domain([...new Set(data.map(d => d.superpathway))])
@@ -97,7 +212,6 @@
               .attr("dx", "-.8em").attr("dy", ".15em")
               .attr("transform", "rotate(-40)");
 
-      // Y scale
       var y = d3.scaleLinear()
               .domain([0, d3.max(data, d => d.RPKM) * 1.1])
               .range([height, 0]);
@@ -114,86 +228,59 @@
               .style("font-weight", "bold")
               .text("RPKM");
 
-      // histogram
       var histogram = d3.bin()
               .domain(y.domain())
               .thresholds(y.ticks(20))
               .value(d => d);
 
-      // group by superpathway  (d3.nest → d3.group in v7)
       var groups = d3.group(data, d => d.superpathway);
 
       var sumstat = Array.from(groups, ([key, values]) => ({
-        key,
-        value: histogram(values.map(g => g.RPKM))
+        key, value: histogram(values.map(g => g.RPKM))
       }));
 
       var boxStats = Array.from(groups, ([key, values]) => {
         const vals = values.map(g => g.RPKM).sort(d3.ascending);
-        return {
-          key,
-          value: {
-            q1:     d3.quantile(vals, 0.25),
-            median: d3.quantile(vals, 0.5),
-            q3:     d3.quantile(vals, 0.75),
-            min:    d3.min(vals),
-            max:    d3.max(vals)
-          }
-        };
+        return { key, value: {
+            q1: d3.quantile(vals, 0.25), median: d3.quantile(vals, 0.5),
+            q3: d3.quantile(vals, 0.75), min: d3.min(vals), max: d3.max(vals)
+          }};
       });
 
       var maxNum = d3.max(sumstat, d => d3.max(d.value, b => b.length));
+      var xNum = d3.scaleLinear().range([0, x.bandwidth()]).domain([-maxNum, maxNum]);
 
-      var xNum = d3.scaleLinear()
-              .range([0, x.bandwidth()])
-              .domain([-maxNum, maxNum]);
-
-      // violins
-      svg.selectAll("myViolin")
-              .data(sumstat).enter()
-              .append("g")
-              .attr("transform", d => "translate(" + x(d.key) + ",0)")
-              .append("path")
-              .datum(d => d.value)
-              .style("stroke", "none")
-              .style("fill", "#69b3a2")
+      svg.selectAll("myViolin").data(sumstat).enter()
+              .append("g").attr("transform", d => "translate(" + x(d.key) + ",0)")
+              .append("path").datum(d => d.value)
+              .style("stroke", "none").style("fill", "#69b3a2")
               .attr("d", d3.area()
-                      .x0(d => xNum(-d.length))
-                      .x1(d => xNum(d.length))
-                      .y(d => y(d.x0))
-                      .curve(d3.curveCatmullRom)
-              );
+                      .x0(d => xNum(-d.length)).x1(d => xNum(d.length))
+                      .y(d => y(d.x0)).curve(d3.curveCatmullRom));
 
-      // box
       var boxWidth = x.bandwidth() * 0.15;
 
-      svg.selectAll("boxplot")
-              .data(boxStats).enter()
-              .append("rect")
-              .attr("x",      d => x(d.key) + x.bandwidth()/2 - boxWidth/2)
-              .attr("width",  boxWidth)
-              .attr("y",      d => y(d.value.q3))
+      svg.selectAll("boxplot").data(boxStats).enter().append("rect")
+              .attr("x", d => x(d.key) + x.bandwidth()/2 - boxWidth/2)
+              .attr("width", boxWidth)
+              .attr("y", d => y(d.value.q3))
               .attr("height", d => y(d.value.q1) - y(d.value.q3))
               .style("fill", "black").style("fill-opacity", 0.05).style("stroke", "black");
 
-      svg.selectAll("medianLine")
-              .data(boxStats).enter()
-              .append("line")
+      svg.selectAll("medianLine").data(boxStats).enter().append("line")
               .attr("x1", d => x(d.key) + x.bandwidth()/2 - boxWidth/2)
               .attr("x2", d => x(d.key) + x.bandwidth()/2 + boxWidth/2)
               .attr("y1", d => y(d.value.median)).attr("y2", d => y(d.value.median))
               .style("stroke", "black").style("stroke-width", 2);
 
-      svg.selectAll("whisker")
-              .data(boxStats).enter().append("line")
+      svg.selectAll("whisker").data(boxStats).enter().append("line")
               .attr("x1", d => x(d.key) + x.bandwidth()/2)
               .attr("x2", d => x(d.key) + x.bandwidth()/2)
               .attr("y1", d => y(d.value.min)).attr("y2", d => y(d.value.max))
               .style("stroke", "black");
 
       ["max","min"].forEach(cap => {
-        svg.selectAll("whiskerCap-" + cap)
-                .data(boxStats).enter().append("line")
+        svg.selectAll("whiskerCap-" + cap).data(boxStats).enter().append("line")
                 .attr("x1", d => x(d.key) + x.bandwidth()/2 - boxWidth/4)
                 .attr("x2", d => x(d.key) + x.bandwidth()/2 + boxWidth/4)
                 .attr("y1", d => y(d.value[cap])).attr("y2", d => y(d.value[cap]))
@@ -204,7 +291,7 @@
 </script>
 
 <!-- ════════════════════════════════════════════
-     KRONA  (your krona.js, pasted inline)
+     KRONA  (D3 v7)
 ════════════════════════════════════════════ -->
 <script>
   function drawKrona(data) {
@@ -213,7 +300,7 @@
     const radius = Math.min(width, height) / 6;
 
     const color = d3.scaleOrdinal(
-            d3.quantize(d3.interpolateRainbow, data.children.length + 1)
+            d3.quantize(d3.interpolateRainbow, (data.children || []).length + 1)
     );
 
     const hierarchy = d3.hierarchy(data)
@@ -225,8 +312,7 @@
     root.each(d => d.current = d);
 
     const arc = d3.arc()
-            .startAngle(d => d.x0)
-            .endAngle(d => d.x1)
+            .startAngle(d => d.x0).endAngle(d => d.x1)
             .padAngle(d => Math.min((d.x1 - d.x0) / 2, 0.005))
             .padRadius(radius * 1.5)
             .innerRadius(d => d.y0 * radius)
@@ -235,8 +321,8 @@
     const svg = d3.create("svg")
             .attr("viewBox", [-width/2, -height/2, width, height])
             .style("font", "10px sans-serif")
-            .style("width", "800px")
-            .style("height", "700px");
+            .style("width",  "100%")
+            .style("height", "calc(100vh - 160px)");
 
     const zoomGroup = svg.append("g");
 
@@ -244,7 +330,7 @@
             .selectAll("path")
             .data(root.descendants().slice(1))
             .join("path")
-            .attr("fill", d => { while (d.depth > 1) d = d.parent; return color(d.data.name); })
+            .attr("fill", d => { let e = d; while (e.depth > 1) e = e.parent; return color(e.data.name); })
             .attr("fill-opacity", d => arcVisible(d.current) ? (d.children ? 0.6 : 0.4) : 0)
             .attr("pointer-events", d => arcVisible(d.current) ? "auto" : "none")
             .attr("d", d => arc(d.current))
@@ -252,9 +338,9 @@
               const tooltip = document.getElementById("tooltip");
               const namePath = d.ancestors().map(x => x.data.name).reverse().join(" / ");
               tooltip.style.opacity = 1;
-              tooltip.innerHTML = `<strong>Taxon: ${namePath}</strong><br>
-                Reads: ${d.value}<br>
-                ${d.data.percentage !== undefined ? "Percentage: " + (d.data.percentage * 100).toFixed(2) + "%" : ""}`;
+              tooltip.innerHTML = `<strong>${namePath}</strong><br>
+            Reads: ${d.value}<br>
+            ${d.data.percentage !== undefined ? "Percentage: " + (d.data.percentage * 100).toFixed(2) + "%" : ""}`;
               tooltip.style.left = (event.pageX + 10) + "px";
               tooltip.style.top  = (event.pageY + 10) + "px";
             })
@@ -299,8 +385,9 @@
               .attrTween("transform", d => () => labelTransform(d.current));
     }
 
-    function arcVisible(d)   { return d.y1 <= 3 && d.y0 >= 1 && d.x1 > d.x0; }
-    function labelVisible(d) { return d.y1 <= 3 && d.y0 >= 1 && (d.y1 - d.y0) * (d.x1 - d.x0) > 0.03; }
+    // updated to show 4 rings (phylum + class + order + family, or up to species)
+    function arcVisible(d)   { return d.y1 <= 4 && d.y0 >= 1 && d.x1 > d.x0; }
+    function labelVisible(d) { return d.y1 <= 4 && d.y0 >= 1 && (d.y1 - d.y0) * (d.x1 - d.x0) > 0.03; }
     function labelTransform(d) {
       const x = (d.x0 + d.x1) / 2 * 180 / Math.PI;
       const y = (d.y0 + d.y1) / 2 * radius;
