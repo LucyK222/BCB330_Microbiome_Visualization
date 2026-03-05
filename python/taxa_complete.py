@@ -5,6 +5,7 @@ import json
 df = pd.read_csv("../data/taxa_classifications_splited.tsv", sep="\t")
 
 # Fill empty taxonomy fields with "Unclassified X"
+df["Phylum"]  = df["Phylum"].replace("", pd.NA).fillna("Unclassified Phylum")
 df["Class"]   = df["Class"].replace("", pd.NA).fillna("Unclassified Class")
 df["Order"]   = df["Order"].replace("", pd.NA).fillna("Unclassified Order")
 df["Family"]  = df["Family"].replace("", pd.NA).fillna("Unclassified Family")
@@ -20,7 +21,7 @@ print(f"Total classified bacterial reads: {total_reads}")
 # ---- 2. Aggregate read counts at full depth ----
 # Full hierarchy: Phylum → Class → Order → Family → Genus → Species
 summary = (
-    df.groupby(["Phylum", "Class", "Order", "Family", "Genus", "Species"])
+    df.groupby(["Phylum", "Class", "Order", "Family", "Genus", "Species"], dropna=False)
     .size()
     .reset_index(name="count")
 )
@@ -99,3 +100,9 @@ with open(output_path, "w") as f:
 print(f"Saved full hierarchy to {output_path}")
 print(f"  Phyla:   {len(full_hierarchy['children'])}")
 print(f"  Species: {len(summary)}")
+
+total_pct = sum(p["percentage"] for p in full_hierarchy["children"])
+print(f"Sum of all phylum percentages: {total_pct:.6f}")
+
+# Also check raw
+print(f"Sum of all species percentages: {summary['percentage'].sum():.6f}")

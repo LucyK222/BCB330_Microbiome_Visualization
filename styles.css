@@ -116,3 +116,21 @@ header p {
     width: 100%;
     cursor: pointer;
 }
+
+.krona-toggle {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    padding: 8px 16px;
+    background: #f0f4f8;
+    border-radius: 6px;
+    margin-bottom: 10px;
+    font-size: 13px;
+    font-weight: 500;
+}
+.toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+}

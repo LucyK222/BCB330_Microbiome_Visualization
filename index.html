@@ -28,6 +28,17 @@
 <div id="panel-krona" class="tab-panel">
   <div class="panel-title">Taxonomic Composition (Krona)</div>
 
+  <!-- switch -->
+  <div class="krona-toggle">
+    <span>Data source:</span>
+    <label class="toggle-label">
+      <input type="radio" name="kronaMode" value="reads" checked> Read Counts
+    </label>
+    <label class="toggle-label">
+      <input type="radio" name="kronaMode" value="rpkm"> RPKM
+    </label>
+  </div>
+
   <!-- Sliders -->
   <div class="slider-panel">
     <div class="slider-group">
@@ -73,20 +84,39 @@
 
     if (name === 'violin' && !window._violinLoaded) { drawViolin(); window._violinLoaded = true; }
     if (name === 'krona'  && !window._kronaLoaded)  {
-      fetch("./data/taxa_complete.json")
-              .then(r => r.json())
-              .then(data => {
-                window._kronaData = data;  // cache the full unfiltered tree
-                rebuildKrona();
-              })
-              .catch(err => console.error("Failed to load taxa.json:", err));
       window._kronaLoaded = true;
+      loadAndDrawKrona();
     }
   }
 
   window.addEventListener('DOMContentLoaded', () => {
     drawViolin();
     window._violinLoaded = true;
+  });
+
+  // ── Mode toggle ──────────────────────────────────────────────
+  let kronaMode = 'reads';
+
+  function getKronaFile() {
+    return kronaMode === 'reads' ? './data/taxa_complete.json' : './data/taxa_rpkm.json';
+  }
+
+  function loadAndDrawKrona() {
+    fetch(getKronaFile())
+            .then(r => r.json())
+            .then(data => {
+              window._kronaData = data;
+              rebuildKrona();
+            })
+            .catch(err => console.error("Failed to load krona data:", err));
+  }
+
+  document.querySelectorAll('input[name="kronaMode"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      kronaMode = e.target.value;
+      window._kronaData = null;
+      loadAndDrawKrona();
+    });
   });
 </script>
 
@@ -120,8 +150,9 @@
   function rebuildKrona() {
     const container = document.getElementById('chart');
     container.innerHTML = '';
+    const totalValue = nodeValue(window._kronaData); // unfiltered total
     const filtered = filterTree(window._kronaData, getTopN());
-    container.appendChild(drawKrona(filtered));
+    container.appendChild(drawKrona(filtered, totalValue));
   }
 
   // ── Tree filtering ──────────────────────────────────────────────
@@ -294,7 +325,7 @@
      KRONA  (D3 v7)
 ════════════════════════════════════════════ -->
 <script>
-  function drawKrona(data) {
+  function drawKrona(data, totalValue) {
     const width  = 800;
     const height = 700;
     const radius = Math.min(width, height) / 6;
@@ -307,12 +338,26 @@
             .sum(d => d.value)
             .sort((a, b) => b.value - a.value);
 
+    // ── KEY FIX: compute the true angular span from actual percentages ──
+    // Sum the top-level children's percentages (they are already fractions of the whole)
+    function sumPercentage(node) {
+      if (node.percentage !== undefined && !node.children) return node.percentage;
+      if (node.percentage !== undefined) return node.percentage;
+      return (node.children || []).reduce((s, c) => s + sumPercentage(c), 0);
+    }
+
+    // The root's real total percentage (may be < 1 because not all taxa are kept)
+    const realFraction = (data.children || []).reduce((s, c) => s + (c.percentage || 0), 0);
+    // Clamp to [0, 1] just in case
+    const angularSpan = 2 * Math.PI * Math.min(realFraction, 1);
+
     const root = d3.partition()
-            .size([2 * Math.PI, hierarchy.height + 1])(hierarchy);
+            .size([angularSpan, hierarchy.height + 1])(hierarchy);
     root.each(d => d.current = d);
 
     const arc = d3.arc()
-            .startAngle(d => d.x0).endAngle(d => d.x1)
+            .startAngle(d => d.x0)
+            .endAngle(d => d.x1)
             .padAngle(d => Math.min((d.x1 - d.x0) / 2, 0.005))
             .padRadius(radius * 1.5)
             .innerRadius(d => d.y0 * radius)
@@ -338,9 +383,10 @@
               const tooltip = document.getElementById("tooltip");
               const namePath = d.ancestors().map(x => x.data.name).reverse().join(" / ");
               tooltip.style.opacity = 1;
+              const metricLabel = kronaMode === 'reads' ? 'Reads' : 'RPKM';
               tooltip.innerHTML = `<strong>${namePath}</strong><br>
-            Reads: ${d.value}<br>
-            ${d.data.percentage !== undefined ? "Percentage: " + (d.data.percentage * 100).toFixed(2) + "%" : ""}`;
+                ${metricLabel}: ${kronaMode === 'reads' ? d.value : d.value.toFixed(2)}<br>
+                Percentage: ${((d.value / totalValue) * 100).toFixed(2)}%`;
               tooltip.style.left = (event.pageX + 10) + "px";
               tooltip.style.top  = (event.pageY + 10) + "px";
             })
@@ -366,12 +412,14 @@
 
     function clicked(event, p) {
       parent.datum(p.parent || root);
+      const span = p.x1 - p.x0;
       root.each(d => d.target = {
-        x0: Math.max(0, Math.min(1, (d.x0 - p.x0) / (p.x1 - p.x0))) * 2 * Math.PI,
-        x1: Math.max(0, Math.min(1, (d.x1 - p.x0) / (p.x1 - p.x0))) * 2 * Math.PI,
+        x0: Math.max(0, Math.min(1, (d.x0 - p.x0) / span)) * angularSpan,
+        x1: Math.max(0, Math.min(1, (d.x1 - p.x0) / span)) * angularSpan,
         y0: Math.max(0, d.y0 - p.depth),
         y1: Math.max(0, d.y1 - p.depth)
       });
+
       const t = svg.transition().duration(event.altKey ? 7500 : 750);
       path.transition(t)
               .tween("data", d => { const i = d3.interpolate(d.current, d.target); return t => d.current = i(t); })
@@ -385,7 +433,6 @@
               .attrTween("transform", d => () => labelTransform(d.current));
     }
 
-    // updated to show 4 rings (phylum + class + order + family, or up to species)
     function arcVisible(d)   { return d.y1 <= 4 && d.y0 >= 1 && d.x1 > d.x0; }
     function labelVisible(d) { return d.y1 <= 4 && d.y0 >= 1 && (d.y1 - d.y0) * (d.x1 - d.x0) > 0.03; }
     function labelTransform(d) {
