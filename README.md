@@ -14,6 +14,16 @@ Krona Chart:
 
 5. https://observablehq.com/@d3/zoomable-sunburst
 
+6. "Other Phyla" means the phylum that's low in composition and collapsed by the slider restriction. And the composition under "Other Phlya" won't be shown.
+
+7. "Unclassified Phyla" means the phylum that's unidentified, or the classified class has unidentified phyla in taxanomy (NCBI?). So there might be classified species with unclassified class.
+
+8. Why RPKM-Krona chart is not full circle: RPKM_table.tsv has a 1% cut-off. In order to show the true proportion of the taxa in the whole sample, there are archs not full circles.
+
+9. "Top N classes" means the top N classes within a phyla.
+
+
+
 Violin Chart:
 
 1. based on RPKM table (need to change to taxa_classification)
