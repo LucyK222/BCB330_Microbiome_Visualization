@@ -29,6 +29,11 @@ Violin Chart:
 1. based on RPKM table (need to change to taxa_classification)
 
 
+Stacked Composition Chart:
+
+1. Why sum of RPKM value is decreasing: the result of cutoff is mixed, so there are empty sections in the krona charts.
+
+
 ## Python Functions
 
 split_taxa.py: process taxa_classification.tsv (output of MetaPro) to taxa_classification_split.tsv
