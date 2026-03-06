@@ -39,6 +39,11 @@
     </label>
   </div>
 
+  <!-- sync button -->
+  <button id="btn-sync-violin" style="display:none" onclick="syncViolinToKrona()">
+    Sync to Violin
+  </button>
+
   <!-- Sliders -->
   <div class="slider-panel">
     <div class="slider-group">
@@ -96,6 +101,7 @@
 
   // ── Mode toggle ──────────────────────────────────────────────
   let kronaMode = 'reads';
+  let kronaCurrentNode = null;
 
   function getKronaFile() {
     return kronaMode === 'reads' ? './data/taxa_complete.json' : './data/taxa_rpkm.json';
@@ -113,7 +119,9 @@
 
   document.querySelectorAll('input[name="kronaMode"]').forEach(radio => {
     radio.addEventListener('change', (e) => {
-      kronaMode = e.target.value;
+      kronaMode = e.target.value;   // ← update FIRST
+      document.getElementById('btn-sync-violin').style.display =
+              kronaMode === 'rpkm' ? 'inline-block' : 'none';  // ← then check
       window._kronaData = null;
       loadAndDrawKrona();
     });
@@ -355,6 +363,8 @@
             .size([angularSpan, hierarchy.height + 1])(hierarchy);
     root.each(d => d.current = d);
 
+    kronaCurrentNode = root;
+
     const arc = d3.arc()
             .startAngle(d => d.x0)
             .endAngle(d => d.x1)
@@ -411,6 +421,7 @@
             .on("click", clicked);
 
     function clicked(event, p) {
+      kronaCurrentNode = p;
       parent.datum(p.parent || root);
       const span = p.x1 - p.x0;
       root.each(d => d.target = {
@@ -446,6 +457,294 @@
     svg.call(zoom);
 
     return svg.node();
+  }
+</script>
+
+<script>
+  // ════════════════════════════════════════════
+  //  EC MAPPING (replicates EC_to_superpath.py)
+  // ════════════════════════════════════════════
+
+  function parseEcToMap(text) {
+    const ecToMap = {};
+    for (const line of text.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const [left, right] = trimmed.split("\t");
+      if (!left || !right) continue;
+      const mapId = left.replace("path:", "");
+      const ec    = right.replace("ec:", "");
+      if (!ecToMap[ec]) ecToMap[ec] = [];
+      ecToMap[ec].push(mapId);
+    }
+    return ecToMap;
+  }
+
+  function parseMapToSuper(rows) {
+    // rows = array of objects from d3.csv
+    const mapToSuper = {};
+    for (const row of rows) {
+      mapToSuper[row["Pathway ID"]] = row["Superpathway"];
+    }
+    return mapToSuper;
+  }
+
+  function getSuperpathwaysForEc(ec, ecToMap, mapToSuper) {
+    const maps = ecToMap[ec] || [];
+    const superpaths = new Set();
+    for (const m of maps) {
+      if (mapToSuper[m]) superpaths.add(mapToSuper[m]);
+    }
+    return [...superpaths];
+  }
+
+  // ════════════════════════════════════════════
+  //  SYNC VIOLIN TO KRONA
+  // ════════════════════════════════════════════
+
+  async function syncViolinToKrona() {
+    // ── 1. Load all data files if not cached ──
+    if (!window._rpkmRows) {
+      window._rpkmRows = await d3.tsv("databases/RPKM_table.tsv");
+    }
+    if (!window._ecToMap) {
+      const text = await d3.text("databases/EC_pathway.txt");
+      window._ecToMap = parseEcToMap(text);
+    }
+    if (!window._mapToSuper) {
+      const rows = await d3.csv("databases/pathway_to_superpathway.csv");
+      window._mapToSuper = parseMapToSuper(rows);
+    }
+
+    // ── 2. Get visible taxa at current Krona zoom level ──
+    let visibleTaxa;
+    const cur = kronaCurrentNode;
+
+    if (!cur || cur.depth === 0) {
+      // At root — use filtered top-level phylum children
+      const filteredRoot = filterTree(window._kronaData, getTopN());
+      visibleTaxa = (filteredRoot.children || [])
+              .map(d => d.name)
+              .filter(n => !n.startsWith("Other"));
+    } else {
+      // Drilled into a node — use its direct children from filtered tree
+      visibleTaxa = (cur.data.children || [])
+              .map(d => d.name)
+              .filter(n => !n.startsWith("Other"));
+    }
+
+    if (visibleTaxa.length === 0) {
+      alert("No visible taxa found in current Krona view.");
+      return;
+    }
+
+// ── 3. Find which of those taxa exist as columns in RPKM table ──
+    const allCols = Object.keys(window._rpkmRows[0]);
+    const FIXED = new Set(["GeneID","Length","Reads","EC#","ECF","RPKM","Bacteria"]);
+    const taxonCols = allCols.filter(c => !FIXED.has(c));
+
+// Build a lookup from the full kronaData tree:
+// for each visible taxon name, collect all leaf-level species names
+// under it, then try to match those to RPKM columns
+    function collectLeafNames(node) {
+      if (!node.children || node.children.length === 0) return [node.name];
+      return node.children.flatMap(c => collectLeafNames(c));
+    }
+
+    function findNodeInTree(tree, targetName) {
+      if (tree.name === targetName) return tree;
+      for (const child of tree.children || []) {
+        const found = findNodeInTree(child, targetName);
+        if (found) return found;
+      }
+      return null;
+    }
+
+// For each visible taxon, find all descendant names and try to match any of them
+    const uniqueMatchedCols = new Set();
+    const matchedTaxaNames  = new Set();
+
+    for (const taxonName of visibleTaxa) {
+      // First try direct substring match on the taxon itself
+      const directMatch = taxonCols.find(
+              col => col.includes(taxonName) || taxonName.includes(col)
+      );
+      if (directMatch) {
+        uniqueMatchedCols.add(directMatch);
+        matchedTaxaNames.add(taxonName);
+        continue;
+      }
+
+      // No direct match — find this node in the full unfiltered tree
+      // and try all its descendants
+      const node = findNodeInTree(window._kronaData, taxonName);
+      if (node) {
+        const leaves = collectLeafNames(node);
+        for (const leafName of leaves) {
+          const leafMatch = taxonCols.find(
+                  col => col.includes(leafName) || leafName.includes(col)
+          );
+          if (leafMatch) {
+            uniqueMatchedCols.add(leafMatch);
+            matchedTaxaNames.add(taxonName);
+          }
+        }
+      }
+    }
+
+    if (uniqueMatchedCols.size === 0) {
+      alert(`None of the visible taxa matched columns in RPKM table.\nVisible: ${visibleTaxa.join(", ")}`);
+      return;
+    }
+
+    const matchedColsArray = [...uniqueMatchedCols];
+
+    // ── 4. Filter rows: EC# valid + at least one matched taxon col non-zero ──
+    const filteredRows = window._rpkmRows.filter(row => {
+      if (!row["EC#"] || row["EC#"] === "0.0.0.0") return false;
+      return matchedColsArray.some(col => {
+        const v = parseFloat(row[col]);
+        return !isNaN(v) && v !== 0;
+      });
+    });
+
+    if (filteredRows.length === 0) {
+      alert("No matching rows found after filtering.");
+      return;
+    }
+
+    // ── 5. Map EC# → superpathway, expand rows ──
+    const flatData = [];
+    for (const row of filteredRows) {
+      const rpkm   = parseFloat(row["RPKM"]);
+      if (isNaN(rpkm)) continue;
+
+      const ecRaw  = row["EC#"];
+      const ecs    = ecRaw.split("|").map(e => e.trim());
+
+      for (const ec of ecs) {
+        const superpaths = getSuperpathwaysForEc(ec, window._ecToMap, window._mapToSuper);
+        for (const sp of superpaths) {
+          flatData.push({ superpathway: sp, RPKM: rpkm });
+        }
+      }
+    }
+
+    if (flatData.length === 0) {
+      alert("No superpathway mappings found for the filtered genes.");
+      return;
+    }
+
+    // ── 6. Switch to violin tab and draw ──
+    const violinBtn = document.querySelector('.tab-btn');
+    switchTab('violin', violinBtn);
+
+    const title = `RPKM by Superpathway — ${visibleTaxa.join(", ")}`;
+    drawViolinFromData(flatData, title);
+  }
+
+  // ════════════════════════════════════════════
+  //  GENERIC VIOLIN DRAWER (used by sync)
+  // ════════════════════════════════════════════
+
+  function drawViolinFromData(flatData, title) {
+    d3.select("#my_dataviz").selectAll("*").remove();
+    document.querySelector("#panel-violin .panel-title").textContent = title;
+
+    var margin = {top: 10, right: 30, bottom: 160, left: 80},
+            width  = 900 - margin.left - margin.right,
+            height = 500 - margin.top  - margin.bottom;
+
+    var svg = d3.select("#my_dataviz")
+            .append("svg")
+            .attr("width",  width  + margin.left + margin.right)
+            .attr("height", height + margin.top  + margin.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    const domain = [...new Set(flatData.map(d => d.superpathway))].sort();
+
+    var x = d3.scaleBand().range([0, width]).domain(domain).padding(0.05);
+    svg.append("g")
+            .attr("transform", `translate(0,${height})`)
+            .call(d3.axisBottom(x))
+            .selectAll("text")
+            .style("text-anchor", "end")
+            .attr("dx", "-.8em").attr("dy", ".15em")
+            .attr("transform", "rotate(-40)");
+
+    var y = d3.scaleLinear()
+            .domain([0, d3.max(flatData, d => d.RPKM) * 1.1])
+            .range([height, 0]);
+    svg.append("g")
+            .call(d3.axisLeft(y))
+            .append("text")
+            .attr("transform", "rotate(-90)")
+            .attr("y", -margin.left + 15).attr("x", -height / 2)
+            .attr("dy", "1em")
+            .style("text-anchor", "middle").style("fill", "black")
+            .style("font-size", "12px").style("font-weight", "bold")
+            .text("RPKM");
+
+    var histogram = d3.bin()
+            .domain(y.domain())
+            .thresholds(y.ticks(20))
+            .value(d => d);
+
+    var groups   = d3.group(flatData, d => d.superpathway);
+    var sumstat  = Array.from(groups, ([key, values]) => ({
+      key, value: histogram(values.map(g => g.RPKM))
+    }));
+    var boxStats = Array.from(groups, ([key, values]) => {
+      const vals = values.map(g => g.RPKM).sort(d3.ascending);
+      return { key, value: {
+          q1:     d3.quantile(vals, 0.25),
+          median: d3.quantile(vals, 0.5),
+          q3:     d3.quantile(vals, 0.75),
+          min:    d3.min(vals),
+          max:    d3.max(vals)
+        }};
+    });
+
+    var maxNum = d3.max(sumstat, d => d3.max(d.value, b => b.length));
+    var xNum   = d3.scaleLinear().range([0, x.bandwidth()]).domain([-maxNum, maxNum]);
+
+    svg.selectAll("myViolin").data(sumstat).enter()
+            .append("g").attr("transform", d => `translate(${x(d.key)},0)`)
+            .append("path").datum(d => d.value)
+            .style("stroke", "none")
+            .style("fill", (d, i) => d3.schemeTableau10[i % 10])
+            .attr("d", d3.area()
+                    .x0(d => xNum(-d.length)).x1(d => xNum(d.length))
+                    .y(d => y(d.x0)).curve(d3.curveCatmullRom));
+
+    var boxWidth = x.bandwidth() * 0.15;
+    svg.selectAll("boxplot").data(boxStats).enter().append("rect")
+            .attr("x", d => x(d.key) + x.bandwidth()/2 - boxWidth/2)
+            .attr("width", boxWidth)
+            .attr("y", d => y(d.value.q3))
+            .attr("height", d => y(d.value.q1) - y(d.value.q3))
+            .style("fill", "black").style("fill-opacity", 0.05).style("stroke", "black");
+
+    svg.selectAll("medianLine").data(boxStats).enter().append("line")
+            .attr("x1", d => x(d.key) + x.bandwidth()/2 - boxWidth/2)
+            .attr("x2", d => x(d.key) + x.bandwidth()/2 + boxWidth/2)
+            .attr("y1", d => y(d.value.median)).attr("y2", d => y(d.value.median))
+            .style("stroke", "black").style("stroke-width", 2);
+
+    svg.selectAll("whisker").data(boxStats).enter().append("line")
+            .attr("x1", d => x(d.key) + x.bandwidth()/2)
+            .attr("x2", d => x(d.key) + x.bandwidth()/2)
+            .attr("y1", d => y(d.value.min)).attr("y2", d => y(d.value.max))
+            .style("stroke", "black");
+
+    ["max", "min"].forEach(cap => {
+      svg.selectAll(`whiskerCap-${cap}`).data(boxStats).enter().append("line")
+              .attr("x1", d => x(d.key) + x.bandwidth()/2 - boxWidth/4)
+              .attr("x2", d => x(d.key) + x.bandwidth()/2 + boxWidth/4)
+              .attr("y1", d => y(d.value[cap])).attr("y2", d => y(d.value[cap]))
+              .style("stroke", "black");
+    });
   }
 </script>
 

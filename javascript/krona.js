@@ -69,6 +69,8 @@ function drawKrona(data) {
                 <strong>Taxon: ${namePath}</strong><br>
                 Number of Reads: ${d.value}<br>
                 Percentage: ${((d.value / totalValue) * 100).toFixed(2)}%
+                
+                
             `;
 
             tooltip.style.left = (event.pageX + 10) + "px";
