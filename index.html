@@ -16,6 +16,7 @@
 <div class="tab-bar">
   <button class="tab-btn active" onclick="switchTab('violin', this)">Violin Plot</button>
   <button class="tab-btn"        onclick="switchTab('krona',  this)">Krona Chart</button>
+  <button class="tab-btn"        onclick="switchTab('composition', this)">Composition</button>
 </div>
 
 <!-- ── VIOLIN PANEL ── -->
@@ -71,8 +72,13 @@
       <input type="range" id="slider-species" min="1" max="200" value="20">
     </div>
   </div>
-
   <div id="chart"></div>
+</div>
+
+<!-- ── COMPOSITION PANEL ── -->
+<div id="panel-composition" class="tab-panel">
+  <div class="panel-title">Taxonomic Composition by Level (RPKM)</div>
+  <div id="composition-chart"></div>
 </div>
 
 <div id="tooltip"></div>
@@ -91,6 +97,14 @@
     if (name === 'krona'  && !window._kronaLoaded)  {
       window._kronaLoaded = true;
       loadAndDrawKrona();
+    }
+    if (name === 'composition' && !window._compositionLoaded) {
+      window._compositionLoaded = true;
+      loadAndDrawComposition();
+    }
+    // Also reset if switching back
+    if (name === 'composition' && window._compositionLoaded) {
+      drawComposition();
     }
   }
 
@@ -126,6 +140,15 @@
       loadAndDrawKrona();
     });
   });
+
+  async function loadAndDrawComposition() {
+    if (!window._rpkmTreeData) {
+      const res = await fetch('./data/taxa_rpkm.json');
+      window._rpkmTreeData = await res.json();
+    }
+    drawComposition();
+  }
+
 </script>
 
 <!-- ════════════════════════════════════════════
@@ -151,6 +174,7 @@
     slider.addEventListener('input', () => {
       label.textContent = slider.value;
       if (window._kronaData) rebuildKrona();
+      if (window._rpkmTreeData) drawComposition();
     });
   });
 
@@ -744,6 +768,151 @@
               .attr("x2", d => x(d.key) + x.bandwidth()/2 + boxWidth/4)
               .attr("y1", d => y(d.value[cap])).attr("y2", d => y(d.value[cap]))
               .style("stroke", "black");
+    });
+  }
+</script>
+
+<script>
+  // ════════════════════════════════════════════
+  //  COMPOSITION BAR CHART  (D3 v7)
+  // ════════════════════════════════════════════
+
+  function drawComposition() {
+    const container = d3.select("#composition-chart");
+    container.selectAll("*").remove();
+
+    const tree    = window._rpkmTreeData;
+    const topN    = getTopN();
+
+    // ── 1. Extract top-N taxa per level from the tree ──
+    // Level names and their depth in the tree
+    const levels = [
+      { name: "Phylum",  depth: 1, limit: topN.phylum  },
+      { name: "Class",   depth: 2, limit: topN.class   },
+      { name: "Order",   depth: 3, limit: topN.order   },
+      { name: "Family",  depth: 4, limit: topN.family  },
+      { name: "Genus",   depth: 5, limit: topN.genus   },
+      { name: "Species", depth: 6, limit: topN.species },
+    ];
+
+    // Walk tree and collect all nodes at a given depth
+    function collectAtDepth(node, targetDepth, currentDepth) {
+      if (currentDepth === targetDepth) {
+        return [{ name: node.name, value: nodeValue(node) }];
+      }
+      return (node.children || []).flatMap(c =>
+              collectAtDepth(c, targetDepth, currentDepth + 1)
+      );
+    }
+
+    // For each level, get top N nodes by RPKM, collapse rest into "Other"
+    const levelData = levels.map(level => {
+      const all    = collectAtDepth(tree, level.depth, 0)
+              .sort((a, b) => b.value - a.value);
+      const kept   = all.slice(0, level.limit);
+      const rest   = all.slice(level.limit);
+      const total  = all.reduce((s, d) => s + d.value, 0);
+      const otherV = rest.reduce((s, d) => s + d.value, 0);
+
+      if (otherV > 0) kept.push({ name: `Other ${level.name}`, value: otherV });
+
+      return { level: level.name, taxa: kept, total };
+    });
+
+    // ── 2. SVG setup ──
+    const margin  = { top: 20, right: 200, bottom: 60, left: 80 };
+    const width   = 900 - margin.left - margin.right;
+    const height  = 500 - margin.top  - margin.bottom;
+
+    const svg = container.append("svg")
+            .attr("width",  width  + margin.left + margin.right)
+            .attr("height", height + margin.top  + margin.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    // ── 3. Scales ──
+    const x = d3.scaleBand()
+            .domain(levels.map(l => l.name))
+            .range([0, width])
+            .padding(0.25);
+
+    // Y scale: max is the highest total RPKM across all levels
+    const maxTotal = d3.max(levelData, d => d.total);
+    const y = d3.scaleLinear()
+            .domain([0, maxTotal * 1.05])
+            .range([height, 0]);
+
+    // Color: consistent color per taxon name across all levels
+    // Collect all unique taxon names
+    const allTaxonNames = [...new Set(levelData.flatMap(d => d.taxa.map(t => t.name)))];
+    const color = d3.scaleOrdinal(d3.schemeTableau10).domain(allTaxonNames);
+
+    // ── 4. Axes ──
+    svg.append("g")
+            .attr("transform", `translate(0,${height})`)
+            .call(d3.axisBottom(x));
+
+    svg.append("g")
+            .call(d3.axisLeft(y))
+            .append("text")
+            .attr("transform", "rotate(-90)")
+            .attr("y", -margin.left + 15)
+            .attr("x", -height / 2)
+            .attr("dy", "1em")
+            .style("text-anchor", "middle")
+            .style("fill", "black")
+            .style("font-size", "12px")
+            .style("font-weight", "bold")
+            .text("RPKM (sum)");
+
+    // ── 5. Draw stacked bars ──
+    levelData.forEach(({ level, taxa }) => {
+      let cumulative = 0;
+      taxa.forEach(taxon => {
+        const barHeight = height - y(taxon.value);
+        const yPos      = y(cumulative + taxon.value);
+
+        svg.append("rect")
+                .attr("x",      x(level))
+                .attr("y",      yPos)
+                .attr("width",  x.bandwidth())
+                .attr("height", Math.max(0, barHeight))
+                .attr("fill",   color(taxon.name))
+                .attr("opacity", taxon.name.startsWith("Other") ? 0.3 : 0.8)
+                .on("mousemove", function(event) {
+                  const tooltip = document.getElementById("tooltip");
+                  const pct = ((taxon.value / levelData.find(d => d.level === level).total) * 100).toFixed(1);
+                  tooltip.style.opacity = 1;
+                  tooltip.innerHTML = `<strong>${taxon.name}</strong><br>
+            RPKM: ${taxon.value.toFixed(2)}<br>
+            ${pct}% of ${level} total`;
+                  tooltip.style.left = (event.pageX + 10) + "px";
+                  tooltip.style.top  = (event.pageY + 10) + "px";
+                })
+                .on("mouseleave", () => {
+                  document.getElementById("tooltip").style.opacity = 0;
+                });
+
+        cumulative += taxon.value;
+      });
+    });
+
+    // ── 6. Legend (right side, scrollable if needed) ──
+    // Show top taxa from Phylum level as legend anchor
+    const legendItems = allTaxonNames.filter(n => !n.startsWith("Other")).slice(0, 15);
+    const legend = svg.append("g")
+            .attr("transform", `translate(${width + 20}, 0)`);
+
+    legendItems.forEach((name, i) => {
+      const g = legend.append("g")
+              .attr("transform", `translate(0, ${i * 18})`);
+      g.append("rect")
+              .attr("width", 12).attr("height", 12)
+              .attr("fill", color(name)).attr("opacity", 0.8);
+      g.append("text")
+              .attr("x", 16).attr("y", 10)
+              .style("font-size", "11px")
+              .text(name.length > 22 ? name.slice(0, 22) + "…" : name);
     });
   }
 </script>
