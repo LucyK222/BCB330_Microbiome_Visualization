@@ -19,6 +19,10 @@
 //  - state is read from state.js
 // ============================================================
 
+// TODO: [alg] where does the "other class" in composition graph come from?
+
+// TODO: [display] and the color keys on the side is messy.
+
 import { state }         from '/js/state.js';
 import { loadRpkmTree }  from '/js/dataLoader.js';
 import { getTopN, onSliderChange } from '/js/sliders.js';
@@ -87,16 +91,16 @@ function _render(tree) {
 
     const topN = getTopN();
 
-    // ── 1. Extract top-N taxa per taxonomic level ──
+    // ── 1. Extract taxa per taxonomic level ──
     // Instead of using filterTree() (which preserves tree structure),
     // we flatten each level independently for the bar chart.
     const levels = [
-        { name: 'Phylum',  depth: 1, limit: topN.phylum  },
-        { name: 'Class',   depth: 2, limit: topN.class   },
-        { name: 'Order',   depth: 3, limit: topN.order   },
-        { name: 'Family',  depth: 4, limit: topN.family  },
-        { name: 'Genus',   depth: 5, limit: topN.genus   },
-        { name: 'Species', depth: 6, limit: topN.species },
+        { name: 'Phylum',  depth: 1 },
+        { name: 'Class',   depth: 2 },
+        { name: 'Order',   depth: 3 },
+        { name: 'Family',  depth: 4 },
+        { name: 'Genus',   depth: 5 },
+        { name: 'Species', depth: 6 },
     ];
 
     // Walk the tree and collect all nodes at a specific depth
@@ -110,16 +114,11 @@ function _render(tree) {
     }
 
     const levelData = levels.map(level => {
-        const all    = collectAtDepth(tree, level.depth, 0)
+        const all   = collectAtDepth(tree, level.depth, 0)
             .sort((a, b) => b.value - a.value);
-        const kept   = all.slice(0, level.limit);
-        const rest   = all.slice(level.limit);
-        const total  = all.reduce((s, d) => s + d.value, 0);
-        const otherV = rest.reduce((s, d) => s + d.value, 0);
+        const total = all.reduce((s, d) => s + d.value, 0);
 
-        if (otherV > 0) kept.push({ name: `Other ${level.name}`, value: otherV });
-
-        return { level: level.name, taxa: kept, total };
+        return { level: level.name, taxa: all, total };
     });
 
     // ── 2. SVG setup ──

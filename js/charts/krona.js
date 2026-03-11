@@ -17,6 +17,10 @@
 //  state.js, data from dataLoader.js, sliders from sliders.js.
 // ============================================================
 
+// TODO: [user friendly] the original display of krona chart is not a complete krona chart.
+
+// TODO: [important] the color code!
+
 import { state }          from '/js/state.js';
 import { loadKronaData }  from '/js/dataLoader.js';
 import { getTopN, onSliderChange } from '/js/sliders.js';
@@ -173,7 +177,10 @@ export function drawKrona(data, totalValue) {
     // take proportionally correct space even after filtering
     const realFraction = (data.children || [])
         .reduce((s, c) => s + (c.percentage || 0), 0);
-    const angularSpan = 2 * Math.PI * Math.min(realFraction, 1);
+
+    const angularSpan = state.kronaMode === 'rpkm'
+        ? 2 * Math.PI
+        : 2 * Math.PI * Math.min(realFraction, 1);
 
     const root = d3.partition()
         .size([angularSpan, hierarchy.height + 1])(hierarchy);
