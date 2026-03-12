@@ -19,8 +19,6 @@
 //  - state is read from state.js
 // ============================================================
 
-// TODO: [alg] where does the "other class" in composition graph come from?
-
 // TODO: [display] and the color keys on the side is messy.
 
 import { state }         from '/js/state.js';

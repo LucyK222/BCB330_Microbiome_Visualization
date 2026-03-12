@@ -8,36 +8,21 @@
 //    filterTree()    — pure function: tree in, filtered tree out
 //    nodeValue()     — pure helper: sum a node's leaf values
 //
-//  BEFORE: filterTree, nodeValue, filterChildren, drawKrona,
-//  and rebuildKrona were all scattered across two separate
-//  <script> blocks in index.html, with kronaCurrentNode and
-//  kronaMode accessed as loose globals.
-//
-//  AFTER: all Krona logic is in one file. State is read from
-//  state.js, data from dataLoader.js, sliders from sliders.js.
+//  Color system (taxaColors.js):
+//    Phylum  → fixed base hue (Ana's conventions)
+//    Class   → distinguishable shade within that hue band
+//    Order+  → inherit class color, progressively lighter per level
+//              so outer rings are always a lighter shade of inner rings
 // ============================================================
-
-// TODO: [user friendly] the original display of krona chart is not a complete krona chart.
-
-// TODO: [important] the color code!
 
 import { state }          from '/js/state.js';
 import { loadKronaData }  from '/js/dataLoader.js';
 import { getTopN, onSliderChange } from '/js/sliders.js';
+import { taxaColor }      from '/js/taxaColors.js';
 
 
 // ── Init (called once from main.js) ─────────────────────────
 
-/**
- * Register Krona's redraw with the slider system, so whenever
- * any slider moves, Krona redraws automatically.
- *
- * BEFORE: the slider forEach block in index.html hardcoded:
- *   if (window._kronaData) rebuildKrona();
- *
- * AFTER: Krona registers itself — sliders.js doesn't need to
- * know Krona exists.
- */
 export function initKrona() {
     onSliderChange(() => {
         if (state.kronaData) rebuildKrona();
@@ -47,21 +32,7 @@ export function initKrona() {
 
 // ── Orchestrator ─────────────────────────────────────────────
 
-/**
- * Load data (if not already cached), filter it with current
- * slider values, and render into #chart.
- *
- * BEFORE (loadAndDrawKrona in index.html):
- *   fetch(getKronaFile())
- *     .then(r => r.json())
- *     .then(data => { window._kronaData = data; rebuildKrona(); })
- *
- * The old version mixed fetching + storing + drawing together.
- * Now fetching is in dataLoader.js, storing is in state.js,
- * and this function just orchestrates the flow.
- */
 export async function rebuildKrona() {
-    // Load and cache data if we don't have it yet
     if (!state.kronaData) {
         state.kronaData = await loadKronaData();
     }
@@ -69,7 +40,7 @@ export async function rebuildKrona() {
     const container = document.getElementById('chart');
     container.innerHTML = '';
 
-    const totalValue = nodeValue(state.kronaData);     // unfiltered total for % calc
+    const totalValue = nodeValue(state.kronaData);
     const filtered   = filterTree(state.kronaData, getTopN());
 
     container.appendChild(drawKrona(filtered, totalValue));
@@ -78,24 +49,11 @@ export async function rebuildKrona() {
 
 // ── Tree helpers ─────────────────────────────────────────────
 
-/**
- * Recursively sum all leaf values under a node.
- * Leaf nodes have a numeric `value` property directly.
- * Branch nodes have `children` but no `value`.
- */
 export function nodeValue(node) {
     if (node.value !== undefined) return node.value;
     return (node.children || []).reduce((s, c) => s + nodeValue(c), 0);
 }
 
-/**
- * Keep the top-N children by value, merge the rest into
- * a single "Other X" node.
- *
- * @param {Array}  children   - array of tree nodes
- * @param {number} topN       - how many to keep
- * @param {string} otherLabel - label for the collapsed node
- */
 function filterChildren(children, topN, otherLabel) {
     if (!children || children.length === 0) return [];
 
@@ -112,17 +70,6 @@ function filterChildren(children, topN, otherLabel) {
     return kept;
 }
 
-/**
- * Walk the full tree and apply top-N filtering at each level.
- * Returns a new filtered tree — does not mutate the original.
- *
- * Tree depth:
- *   root(0) → Phylum(1) → Class(2) → Order(3)
- *           → Family(4) → Genus(5) → Species(6)
- *
- * @param {Object} root  - raw JSON tree root
- * @param {Object} topN  - { phylum, class, order, family, genus, species }
- */
 export function filterTree(root, topN) {
     const config = {
         1: { limit: topN.phylum,  label: 'Other Phyla'   },
@@ -134,7 +81,7 @@ export function filterTree(root, topN) {
     };
 
     function walk(node, depth) {
-        if (!node.children) return { ...node };  // leaf — return as-is
+        if (!node.children) return { ...node };
 
         let children = node.children.map(c => walk(c, depth + 1));
 
@@ -151,30 +98,15 @@ export function filterTree(root, topN) {
 
 // ── Renderer ─────────────────────────────────────────────────
 
-/**
- * Build and return a sunburst SVG node from filtered tree data.
- * This is a pure function: same input always produces same output.
- * It does not touch state or the DOM (except creating an SVG element).
- *
- * @param {Object} data        - filtered tree (output of filterTree)
- * @param {number} totalValue  - unfiltered total, used for % in tooltip
- * @returns {SVGElement}
- */
 export function drawKrona(data, totalValue) {
     const width  = 800;
     const height = 700;
     const radius = Math.min(width, height) / 6;
 
-    const color = d3.scaleOrdinal(
-        d3.quantize(d3.interpolateRainbow, (data.children || []).length + 1)
-    );
-
     const hierarchy = d3.hierarchy(data)
         .sum(d => d.value)
         .sort((a, b) => b.value - a.value);
 
-    // Use actual percentages to set the angular span — so "Other" nodes
-    // take proportionally correct space even after filtering
     const realFraction = (data.children || [])
         .reduce((s, c) => s + (c.percentage || 0), 0);
 
@@ -186,7 +118,6 @@ export function drawKrona(data, totalValue) {
         .size([angularSpan, hierarchy.height + 1])(hierarchy);
     root.each(d => d.current = d);
 
-    // Save current node to state so syncViolinToKrona can read it
     state.kronaCurrentNode = root;
 
     const arc = d3.arc()
@@ -205,22 +136,32 @@ export function drawKrona(data, totalValue) {
 
     const zoomGroup = svg.append('g');
 
-    // ── Arcs ──
+    // ── Arcs ──────────────────────────────────────────────────
+    //
+    // Color assignment:
+    //   "Other *" nodes → neutral grey so they don't distract
+    //   Real taxa       → taxaColor(d) from our hierarchical system
+    //
     const path = zoomGroup.append('g')
         .selectAll('path')
         .data(root.descendants().slice(1))
         .join('path')
         .attr('fill', d => {
-            let e = d;
-            while (e.depth > 1) e = e.parent;
-            return color(e.data.name);
+            const name = d.data.name;
+            if (name.startsWith('Other ')) return '#cccccc';
+            // Check if this node or its phylum ancestor is Unclassified
+            const phylumNode = d.ancestors().find(a => a.depth === 1);
+            if (phylumNode && phylumNode.data.name.toLowerCase().startsWith('unclassified')) return '#cccccc';
+            return taxaColor(d);
         })
-        .attr('fill-opacity', d => arcVisible(d.current) ? (d.children ? 0.6 : 0.4) : 0)
+        // Inner rings (branch nodes) slightly more opaque than leaf rings
+        // to reinforce the "darker inside, lighter outside" visual logic
+        .attr('fill-opacity', d => arcVisible(d.current) ? (d.children ? 0.85 : 0.70) : 0)
         .attr('pointer-events', d => arcVisible(d.current) ? 'auto' : 'none')
         .attr('d', d => arc(d.current))
         .on('mousemove', function(event, d) {
-            const tooltip    = document.getElementById('tooltip');
-            const namePath   = d.ancestors().map(x => x.data.name).reverse().join(' / ');
+            const tooltip     = document.getElementById('tooltip');
+            const namePath    = d.ancestors().map(x => x.data.name).reverse().join(' / ');
             const metricLabel = state.kronaMode === 'reads' ? 'Reads' : 'RPKM';
             const metricValue = state.kronaMode === 'reads'
                 ? d.value
@@ -228,10 +169,10 @@ export function drawKrona(data, totalValue) {
 
             tooltip.style.opacity = 1;
             tooltip.innerHTML = `
-        <strong>${namePath}</strong><br>
-        ${metricLabel}: ${metricValue}<br>
-        Percentage: ${((d.value / totalValue) * 100).toFixed(2)}%
-      `;
+                <strong>${namePath}</strong><br>
+                ${metricLabel}: ${metricValue}<br>
+                Percentage: ${((d.value / totalValue) * 100).toFixed(2)}%
+            `;
             tooltip.style.left = (event.pageX + 10) + 'px';
             tooltip.style.top  = (event.pageY + 10) + 'px';
         })
@@ -243,7 +184,7 @@ export function drawKrona(data, totalValue) {
         .style('cursor', 'pointer')
         .on('click', clicked);
 
-    // ── Labels ──
+    // ── Labels ────────────────────────────────────────────────
     const label = zoomGroup.append('g')
         .attr('pointer-events', 'none')
         .attr('text-anchor', 'middle')
@@ -254,9 +195,11 @@ export function drawKrona(data, totalValue) {
         .attr('dy', '0.35em')
         .attr('fill-opacity', d => +labelVisible(d.current))
         .attr('transform',    d => labelTransform(d.current))
+        // Darker text for inner (darker) rings, lighter for outer rings
+        .attr('fill', d => d.depth <= 2 ? '#1a1a1a' : '#333333')
         .text(d => d.data.name);
 
-    // ── Centre click target (navigate up) ──
+    // ── Centre click target (navigate up) ────────────────────
     const parent = zoomGroup.append('circle')
         .datum(root)
         .attr('r', radius)
@@ -264,9 +207,9 @@ export function drawKrona(data, totalValue) {
         .attr('pointer-events', 'all')
         .on('click', clicked);
 
-    // ── Click to zoom ──
+    // ── Click to zoom ─────────────────────────────────────────
     function clicked(event, p) {
-        state.kronaCurrentNode = p;   // ← update state, not a global
+        state.kronaCurrentNode = p;
         parent.datum(p.parent || root);
 
         const span = p.x1 - p.x0;
@@ -287,7 +230,7 @@ export function drawKrona(data, totalValue) {
             .filter(function(d) {
                 return +this.getAttribute('fill-opacity') || arcVisible(d.target);
             })
-            .attr('fill-opacity', d => arcVisible(d.target) ? (d.children ? 0.6 : 0.4) : 0)
+            .attr('fill-opacity', d => arcVisible(d.target) ? (d.children ? 0.85 : 0.70) : 0)
             .attr('pointer-events', d => arcVisible(d.target) ? 'auto' : 'none')
             .attrTween('d', d => () => arc(d.current));
 
@@ -300,7 +243,7 @@ export function drawKrona(data, totalValue) {
             .attrTween('transform', d => () => labelTransform(d.current));
     }
 
-    // ── Visibility helpers ──
+    // ── Visibility helpers ────────────────────────────────────
     function arcVisible(d)   { return d.y1 <= 4 && d.y0 >= 1 && d.x1 > d.x0; }
     function labelVisible(d) { return d.y1 <= 4 && d.y0 >= 1 && (d.y1 - d.y0) * (d.x1 - d.x0) > 0.03; }
     function labelTransform(d) {
@@ -309,7 +252,7 @@ export function drawKrona(data, totalValue) {
         return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
     }
 
-    // ── Zoom/pan ──
+    // ── Zoom/pan ──────────────────────────────────────────────
     const zoom = d3.zoom()
         .scaleExtent([0.5, 10])
         .on('zoom', event => zoomGroup.attr('transform', event.transform));
