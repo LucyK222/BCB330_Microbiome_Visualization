@@ -15,6 +15,8 @@
 //  drawViolinFromData() — one drawing path, no duplication.
 // ============================================================
 
+// TODO: the title should show the last taxa hierarchy, not listing the current hierarchy
+
 // ── Shared SVG config ────────────────────────────────────────
 // Defined once here instead of duplicated in both functions.
 const MARGIN = { top: 10, right: 30, bottom: 160, left: 80 };

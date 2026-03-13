@@ -13,6 +13,10 @@
 // ── Internal list of registered callbacks ───────────────────
 // Each chart that cares about slider changes calls
 // onSliderChange(fn) to register itself.
+
+// TODO: [user friendly] sliding sliders will make the krona chart jump to the original state.
+
+// TODO: [user friendly] change the max and min of slide bar
 const _listeners = [];
 
 /**
