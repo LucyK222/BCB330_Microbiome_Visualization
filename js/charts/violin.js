@@ -1,66 +1,133 @@
 // ============================================================
-//  violin.js — Violin + box plot chart
+//  violin.js — Violin + box plot chart with drag-to-select
+//              drill-down table
 //
 //  Exports:
-//    drawViolin()                  — loads default CSV and draws
+//    drawViolin()                    — loads default TSV and draws
 //    drawViolinFromData(data, title) — draws from prepared data
-//                                    (used by syncViolinToKrona)
-//
-//  BEFORE: two separate functions lived in a <script> block in
-//  index.html. drawViolin() had its own inline d3.csv() call
-//  and duplicated all the SVG setup that drawViolinFromData()
-//  also had.
-//
-//  AFTER: drawViolin() just loads the CSV then delegates to
-//  drawViolinFromData() — one drawing path, no duplication.
+//                                     (used by syncViolinToKrona)
 // ============================================================
 
-// TODO: the title should show the last taxa hierarchy, not listing the current hierarchy
-
 // ── Shared SVG config ────────────────────────────────────────
-// Defined once here instead of duplicated in both functions.
-const MARGIN = { top: 10, right: 30, bottom: 160, left: 80 };
-const WIDTH  = 900 - MARGIN.left - MARGIN.right;
-const HEIGHT = 500 - MARGIN.top  - MARGIN.bottom;
+const MARGIN = { top: 10, right: 80, bottom: 160, left: 80 };
+const WIDTH  = 1200 - MARGIN.left - MARGIN.right;
+const HEIGHT = 500  - MARGIN.top  - MARGIN.bottom;
+
+
+// ── EC → Superpathway helpers ─────────────────────────────────
+
+/**
+ * Load EC_pathway.txt and build ec_to_map:
+ *   { "1.1.1.1": ["map00010", "map00020", ...], ... }
+ */
+async function loadEcToMap(filepath) {
+    const text = await d3.text(filepath);
+    const ec_to_map = {};
+    for (const line of text.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const [left, right] = trimmed.split('\t');
+        if (!left || !right) continue;
+        const map_id = left.replace('path:', '');
+        const ec     = right.replace('ec:', '');
+        if (!ec_to_map[ec]) ec_to_map[ec] = [];
+        ec_to_map[ec].push(map_id);
+    }
+    return ec_to_map;
+}
+
+/**
+ * Load pathway_to_superpathway.csv and build map_to_super:
+ *   { "map00010": "Carbohydrate Metabolism", ... }
+ */
+async function loadMapToSuper(filepath) {
+    const rows = await d3.csv(filepath);
+    const map_to_super = {};
+    for (const row of rows) {
+        map_to_super[row['Pathway ID']] = row['Superpathway'];
+    }
+    return map_to_super;
+}
+
+/**
+ * Given an EC number, return unique superpathways it belongs to.
+ */
+function getSuperpathwaysForEc(ec, ec_to_map, map_to_super) {
+    const maps = ec_to_map[ec] || [];
+    const superpaths = new Set();
+    for (const m of maps) {
+        if (map_to_super[m]) superpaths.add(map_to_super[m]);
+    }
+    return [...superpaths];
+}
+
+/**
+ * Flatten raw TSV rows into { GeneID, EC, RPKM, superpathway },
+ * duplicating each gene once per superpathway it belongs to.
+ * Genes with no superpathway mapping are placed in "Unclassified".
+ */
+function flattenWithSuperpathways(raw, ec_to_map, map_to_super) {
+    const firstRow  = raw[0] || {};
+    const allKeys   = Object.keys(firstRow);
+    const geneIDKey = allKeys.find(k => k.replace(/^[.,\uFEFF]+/, '') === 'GeneID') || 'GeneID';
+    const ecKey     = allKeys.find(k => k.replace(/^[.,\uFEFF]+/, '') === 'EC#')    || 'EC#';
+    const rpkmKey   = allKeys.find(k => k.replace(/^[.,\uFEFF]+/, '') === 'RPKM')   || 'RPKM';
+
+    const flat = [];
+    for (const row of raw) {
+        const ec         = row[ecKey];
+        const superpaths = getSuperpathwaysForEc(ec, ec_to_map, map_to_super);
+        const targets    = superpaths.length > 0 ? superpaths : ['Unclassified'];
+        for (const sp of targets) {
+            flat.push({
+                GeneID:       row[geneIDKey],
+                EC:           ec,
+                RPKM:         +row[rpkmKey],
+                superpathway: sp,
+            });
+        }
+    }
+    return flat;
+}
 
 
 // ── Public: default view ─────────────────────────────────────
 
 /**
- * Load the default CSV and draw the violin chart.
- * Called once when the violin tab first becomes active.
- *
- * BEFORE: this function had its own copy of all the SVG setup
- * code (margins, scales, histogram, box stats) duplicated from
- * drawViolinFromData().
- *
- * AFTER: loads data, reshapes it to { superpathway, RPKM }
- * format, then hands off to drawViolinFromData().
+ * Load the default TSV + database files, build the flat data,
+ * then hand off to drawViolinFromData().
  */
 export async function drawViolin() {
-    const raw = await d3.csv('data/violin_Dorea_sp_5_2.csv');
-    raw.forEach(d => { d.RPKM = +d.RPKM; });
+    const [raw, ec_to_map, map_to_super] = await Promise.all([
+        d3.tsv('databases/RPKM_table.tsv'),
+        loadEcToMap('databases/EC_pathway.txt'),
+        loadMapToSuper('databases/pathway_to_superpathway.csv'),
+    ]);
 
-    drawViolinFromData(raw, 'RPKM Distribution by Superpathway — Dorea sp. 5_2');
+    const flatData = flattenWithSuperpathways(raw, ec_to_map, map_to_super);
+    drawViolinFromData(flatData, 'RPKM Distribution by Superpathway');
 }
 
 
 // ── Public: draw from prepared data ─────────────────────────
 
 /**
- * Render the violin + box plot from any flat array of
- * { superpathway, RPKM } objects.
+ * Render the violin + box plot from a flat array of
+ * { GeneID, EC, RPKM, superpathway } objects.
  *
  * Used both by drawViolin() above and by syncViolinToKrona()
  * in sync.js when the user clicks "Sync to Violin".
  *
- * @param {Array}  flatData  - array of { superpathway, RPKM }
+ * @param {Array}  flatData  - array of { GeneID, EC, RPKM, superpathway }
  * @param {string} title     - text shown above the chart
  */
 export function drawViolinFromData(flatData, title) {
     // Clear previous chart and update title
     d3.select('#my_dataviz').selectAll('*').remove();
     document.querySelector('#panel-violin .panel-title').textContent = title;
+
+    // Clear any previous drill-down table
+    d3.select('#violin-drilldown').remove();
 
     // ── SVG setup ──
     const svg = d3.select('#my_dataviz')
@@ -84,8 +151,9 @@ export function drawViolinFromData(flatData, title) {
         .attr('transform', 'rotate(-40)');
 
     // ── Y scale ──
+    const yMax = d3.max(flatData, d => d.RPKM) * 1.1;
     const y = d3.scaleLinear()
-        .domain([0, d3.max(flatData, d => d.RPKM) * 1.1])
+        .domain([0, yMax])
         .range([HEIGHT, 0]);
 
     svg.append('g')
@@ -107,8 +175,8 @@ export function drawViolinFromData(flatData, title) {
         .thresholds(y.ticks(20))
         .value(d => d);
 
-    const groups   = d3.group(flatData, d => d.superpathway);
-    const sumstat  = Array.from(groups, ([key, values]) => ({
+    const groups  = d3.group(flatData, d => d.superpathway);
+    const sumstat = Array.from(groups, ([key, values]) => ({
         key,
         value: histogram(values.map(g => g.RPKM)),
     }));
@@ -192,5 +260,141 @@ export function drawViolinFromData(flatData, title) {
             .attr('y1', d => y(d.value[cap]))
             .attr('y2', d => y(d.value[cap]))
             .style('stroke', 'black');
+    });
+
+
+    // ── Drag-to-select overlay ────────────────────────────────
+    const highlightLayer = svg.append('g').attr('class', 'highlight-layer');
+    let dragState = null;
+
+    svg.selectAll('.drag-overlay')
+        .data(domain).enter()
+        .append('rect')
+        .attr('class', 'drag-overlay')
+        .attr('x',      d => x(d))
+        .attr('y',      0)
+        .attr('width',  x.bandwidth())
+        .attr('height', HEIGHT)
+        .style('fill', 'transparent')
+        .style('cursor', 'ns-resize')
+        .call(
+            d3.drag()
+                .on('start', function(event, key) {
+                    const startY = Math.max(0, Math.min(HEIGHT, event.y));
+                    dragState = { key, startY, currentY: startY };
+
+                    highlightLayer.selectAll('.selection-band').remove();
+
+                    highlightLayer.append('rect')
+                        .attr('class', `selection-band band-${sanitize(key)}`)
+                        .attr('x',      x(key))
+                        .attr('y',      startY)
+                        .attr('width',  x.bandwidth())
+                        .attr('height', 0)
+                        .style('fill', '#f4a261')
+                        .style('fill-opacity', 0.4)
+                        .style('stroke', '#e76f51')
+                        .style('stroke-width', 1)
+                        .style('pointer-events', 'none');
+                })
+                .on('drag', function(event) {
+                    if (!dragState) return;
+                    dragState.currentY = Math.max(0, Math.min(HEIGHT, event.y));
+
+                    const bandY = Math.min(dragState.startY, dragState.currentY);
+                    const bandH = Math.abs(dragState.currentY - dragState.startY);
+
+                    highlightLayer.select(`.band-${sanitize(dragState.key)}`)
+                        .attr('y',      bandY)
+                        .attr('height', bandH);
+                })
+                .on('end', function() {
+                    if (!dragState) return;
+                    const { key, startY, currentY } = dragState;
+
+                    const rpkmHigh = y.invert(Math.min(startY, currentY));
+                    const rpkmLow  = y.invert(Math.max(startY, currentY));
+
+                    const filtered = flatData.filter(d =>
+                        d.superpathway === key &&
+                        d.RPKM >= rpkmLow &&
+                        d.RPKM <= rpkmHigh
+                    ).sort((a, b) => b.RPKM - a.RPKM);
+
+                    renderDrilldownTable(filtered, key, rpkmLow, rpkmHigh);
+                    dragState = null;
+                })
+        );
+
+    function sanitize(str) {
+        return str.replace(/[^a-zA-Z0-9]/g, '_');
+    }
+}
+
+
+// ── Drill-down table ─────────────────────────────────────────
+
+function renderDrilldownTable(rows, superpathway, rpkmLow, rpkmHigh) {
+    d3.select('#violin-drilldown').remove();
+
+    const container = d3.select('#my_dataviz')
+        .append('div')
+        .attr('id', 'violin-drilldown')
+        .style('margin-top', '24px')
+        .style('font-family', 'sans-serif')
+        .style('font-size', '13px');
+
+    container.append('p')
+        .style('margin', '0 0 8px 0')
+        .style('font-weight', 'bold')
+        .style('color', '#333')
+        .html(
+            `${rows.length} gene${rows.length !== 1 ? 's' : ''} in ` +
+            `<em>${superpathway}</em> &nbsp;|&nbsp; ` +
+            `RPKM ${rpkmLow.toFixed(3)} – ${rpkmHigh.toFixed(3)}`
+        );
+
+    if (rows.length === 0) {
+        container.append('p')
+            .style('color', '#888')
+            .text('No genes found in this range. Try dragging a wider selection.');
+        return;
+    }
+
+    const table = container.append('table')
+        .style('border-collapse', 'collapse')
+        .style('width', '100%');
+
+    const headers = ['EC Number', 'RPKM', 'Superpathway'];
+    const fields  = ['EC',        'RPKM', 'superpathway'];
+
+    table.append('thead')
+        .append('tr')
+        .selectAll('th')
+        .data(headers).enter()
+        .append('th')
+        .text(d => d)
+        .style('text-align', 'left')
+        .style('padding', '6px 12px')
+        .style('border-bottom', '2px solid #ccc')
+        .style('background', '#f5f5f5')
+        .style('color', '#444')
+        .style('font-weight', '600');
+
+    const tbody = table.append('tbody');
+
+    const tr = tbody.selectAll('tr')
+        .data(rows).enter()
+        .append('tr')
+        .style('border-bottom', '1px solid #eee')
+        .on('mouseover', function() { d3.select(this).style('background', '#fff8f0'); })
+        .on('mouseout',  function() { d3.select(this).style('background', 'white'); });
+
+    fields.forEach((field, i) => {
+        tr.append('td')
+            .text(d => field === 'RPKM' ? (+d[field]).toFixed(4) : d[field])
+            .style('padding', '5px 12px')
+            .style('color', i === 0 ? '#1a6fa8' : '#333')
+            .style('font-family', i === 0 ? 'monospace' : 'sans-serif');
     });
 }

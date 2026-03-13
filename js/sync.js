@@ -139,8 +139,15 @@ export async function syncViolinToKrona() {
     }
 
     // ── Step 3: Match visible taxa to RPKM table columns ──
-    const FIXED_COLS = new Set(['GeneID', 'Length', 'Reads', 'EC#', 'ECF', 'RPKM', 'Bacteria']);
-    const taxonCols  = Object.keys(rpkmRows[0]).filter(c => !FIXED_COLS.has(c));
+    // Resolve BOM-prefixed keys once, reuse throughout
+    const firstRowKeys = Object.keys(rpkmRows[0] || {});
+    const geneIDKey = firstRowKeys.find(k => k.replace(/^\uFEFF/, '') === 'GeneID') || 'GeneID';
+    const ecKey     = firstRowKeys.find(k => k.replace(/^\uFEFF/, '') === 'EC#')    || 'EC#';
+    const rpkmKey   = firstRowKeys.find(k => k.replace(/^\uFEFF/, '') === 'RPKM')   || 'RPKM';
+
+// Build FIXED_COLS using the *actual* resolved keys
+    const FIXED_COLS = new Set([geneIDKey, 'Length', 'Reads', ecKey, 'ECF', rpkmKey, 'Bacteria']);
+    const taxonCols  = firstRowKeys.filter(c => !FIXED_COLS.has(c));
 
     const uniqueMatchedCols = new Set();
 
@@ -173,30 +180,31 @@ export async function syncViolinToKrona() {
 
     const matchedCols = [...uniqueMatchedCols];
 
-    // ── Step 4: Filter RPKM rows to matched taxa with valid EC numbers ──
+    // ── Step 4 ──
     const filteredRows = rpkmRows.filter(row => {
-        if (!row['EC#'] || row['EC#'] === '0.0.0.0') return false;
+        if (!row[ecKey] || row[ecKey] === '0.0.0.0') return false;
         return matchedCols.some(col => {
             const v = parseFloat(row[col]);
             return !isNaN(v) && v !== 0;
         });
     });
 
-    if (filteredRows.length === 0) {
-        alert('No matching rows found after filtering.');
-        return;
-    }
-
-    // ── Step 5: Map each EC number to superpathways, build flat data ──
+    // ── Step 5 ──
+    // Remove the geneIDKey re-detection here — it's already resolved above
     const flatData = [];
     for (const row of filteredRows) {
-        const rpkm = parseFloat(row['RPKM']);
+        const rpkm = parseFloat(row[rpkmKey]);
         if (isNaN(rpkm)) continue;
 
-        const ecs = row['EC#'].split('|').map(e => e.trim());
+        const ecs = row[ecKey].split('|').map(e => e.trim());
         for (const ec of ecs) {
             for (const sp of getSuperpathwaysForEc(ec, ecToMap, mapToSuper)) {
-                flatData.push({ superpathway: sp, RPKM: rpkm });
+                flatData.push({
+                    GeneID:       row[geneIDKey],
+                    EC:           ec,
+                    RPKM:         rpkm,
+                    superpathway: sp,
+                });
             }
         }
     }
