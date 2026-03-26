@@ -31,6 +31,10 @@ export function initComposition() {
     onSliderChange(() => {
         if (state.rpkmTreeData) drawComposition();
     });
+
+    document.getElementById('select-fontsize').addEventListener('change', () => {
+        if (state.rpkmTreeData) drawComposition();
+    });
 }
 
 // ── Orchestrator ─────────────────────────────────────────────
@@ -38,7 +42,8 @@ export async function drawComposition() {
     if (!state.rpkmTreeData) {
         state.rpkmTreeData = await loadRpkmTree();
     }
-    _render(state.rpkmTreeData);
+    const fontSize = parseInt(document.getElementById('select-fontsize').value, 10);
+    _render(state.rpkmTreeData, fontSize);
 }
 
 // ── Ancestry map ─────────────────────────────────────────────
@@ -53,7 +58,9 @@ function buildAncestryMap(node, depth = 0, phylum = '', className = '', map = ne
 }
 
 // ── Renderer ─────────────────────────────────────────────────
-function _render(tree) {
+function _render(tree, fontSize = 9) {
+    const FONT_H = fontSize;
+
     const container = d3.select('#composition-chart');
     container.selectAll('*').remove();
 
@@ -197,7 +204,7 @@ function _render(tree) {
         // Leader lines connect the bar's right edge to wherever each label lands.
 
         const LABEL_X  = brx + 8;
-        const FONT_H   = 9;
+        // const FONT_H   = 9;
         const MIN_STEP = FONT_H + 2;   // minimum px between label centres
         const n = segments.length;
 

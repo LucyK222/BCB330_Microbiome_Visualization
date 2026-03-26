@@ -40,6 +40,24 @@
     </label>
   </div>
 
+  <div class="composition-controls">
+    <div class="control-group">
+      <label for="select-krona-fontsize">Label size:</label>
+      <select id="select-krona-fontsize">
+        <option value="7">7</option>
+        <option value="8">8</option>
+        <option value="9">9</option>
+        <option value="10" selected>10</option>
+        <option value="11">11</option>
+        <option value="12">12</option>
+        <option value="14">14</option>
+        <option value="16">16</option>
+        <option value="18">18</option>
+        <option value="20">20</option>
+      </select>
+    </div>
+  </div>
+
   <!-- onclick removed — wired in main.js via addEventListener -->
   <button id="btn-sync-violin" style="display:none">
     Sync to Violin
@@ -78,6 +96,23 @@
 <!-- ── COMPOSITION PANEL ── -->
 <div id="panel-composition" class="tab-panel">
   <div class="panel-title">Taxonomic Composition by Level (RPKM)</div>
+  <div class="composition-controls">
+    <div class="control-group">
+      <label for="select-fontsize">Label size:</label>
+      <select id="select-fontsize">
+        <option value="7">7</option>
+        <option value="8">8</option>
+        <option value="9" selected>9</option>
+        <option value="10">10</option>
+        <option value="11">11</option>
+        <option value="12">12</option>
+        <option value="14">14</option>
+        <option value="16">16</option>
+        <option value="18">18</option>
+        <option value="20">20</option>
+      </select>
+    </div>
+  </div>
   <div id="composition-chart"></div>
 </div>
 

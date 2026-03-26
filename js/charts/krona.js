@@ -27,6 +27,10 @@ export function initKrona() {
     onSliderChange(() => {
         if (state.kronaData) rebuildKrona();
     });
+
+    document.getElementById('select-krona-fontsize').addEventListener('change', () => {
+        if (state.kronaData) rebuildKrona();
+    });
 }
 
 
@@ -42,8 +46,9 @@ export async function rebuildKrona() {
 
     const totalValue = nodeValue(state.kronaData);
     const filtered   = filterTree(state.kronaData, getTopN());
+    const fontSize   = parseInt(document.getElementById('select-krona-fontsize').value, 10);
 
-    container.appendChild(drawKrona(filtered, totalValue));
+    container.appendChild(drawKrona(filtered, totalValue, fontSize));
 }
 
 
@@ -98,7 +103,7 @@ export function filterTree(root, topN) {
 
 // ── Renderer ─────────────────────────────────────────────────
 
-export function drawKrona(data, totalValue) {
+export function drawKrona(data, totalValue, fontSize = 10) {
     const width  = 800;
     const height = 700;
     const radius = Math.min(width, height) / 6;
@@ -130,7 +135,7 @@ export function drawKrona(data, totalValue) {
 
     const svg = d3.create('svg')
         .attr('viewBox', [-width / 2, -height / 2, width, height])
-        .style('font', '10px sans-serif')
+        .style('font', `${fontSize}px sans-serif`)
         .style('width', '100%')
         .style('height', 'calc(100vh - 160px)');
 
