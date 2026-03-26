@@ -24,6 +24,7 @@ import { initComposition,
     drawComposition }  from '/js/charts/composition.js';
 import { drawViolin }       from '/js/charts/violin.js';
 import { syncViolinToKrona } from '/js/sync.js';
+import { drawHeatmap } from '/js/charts/heatmap.js';
 
 
 // ============================================================
@@ -103,6 +104,11 @@ export function switchTab(name, btn) {
     if (name === 'krona' && !state.loaded.krona) {
         state.loaded.krona = true;
         rebuildKrona();
+    }
+
+    if (name === 'heatmap' && !state.loaded.heatmap) {
+        drawHeatmap();
+        state.loaded.heatmap = true;
     }
 
     if (name === 'composition') {

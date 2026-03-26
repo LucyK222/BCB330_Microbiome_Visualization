@@ -16,6 +16,7 @@ export const state = {
         violin:      false,
         krona:       false,
         composition: false,
+        heatmap:     false,
     },
 
     // ── Krona chart state ──

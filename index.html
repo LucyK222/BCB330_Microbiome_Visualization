@@ -18,6 +18,7 @@
   <button class="tab-btn active" data-tab="violin">Violin Plot</button>
   <button class="tab-btn"        data-tab="krona">Krona Chart</button>
   <button class="tab-btn"        data-tab="composition">Composition</button>
+  <button class="tab-btn" data-tab="heatmap">Heatmap</button>
 </div>
 
 <!-- ── VIOLIN PANEL ── -->
@@ -117,6 +118,12 @@
 </div>
 
 <div id="tooltip"></div>
+
+<!-- ── HEATMAP PANEL ── -->
+<div id="panel-heatmap" class="tab-panel">
+  <div class="panel-title">Enzyme Expression by Superpathway × Taxon (RPKM)</div>
+  <div id="heatmap-chart" style="overflow-x: auto;"></div>
+</div>
 
 <!--
   ONE script tag replaces all inline <script> blocks.
