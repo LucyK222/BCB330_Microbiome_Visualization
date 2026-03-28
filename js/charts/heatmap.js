@@ -2,22 +2,42 @@
 //  heatmap.js — Taxon × Superpathway RPKM heatmap
 //
 //  Exports:
-//    drawHeatmap() — loads RPKM_table.tsv + db files, builds
-//                    the summed matrix, renders via D3
+//    drawHeatmap()                    — loads data + draws with all top-20 taxa
+//    drawHeatmapFiltered(taxonNames)  — draws with only the given taxon names
+//                                       (used by Krona shift-click sync)
 // ============================================================
 
 const MARGIN = { top: 120, right: 150, bottom: 40, left: 220 };
 const CELL_H = 28;
 const CELL_W = 44;
 
+// ── Public: default (top-20) view ────────────────────────────
 export async function drawHeatmap() {
+    await _drawHeatmapCore(null);
+}
+
+// ── Public: filtered view from Krona selection ───────────────
+/**
+ * @param {Set<string>} taxonNames — set of taxon names to include.
+ *   These are matched against RPKM_table column headers using the same
+ *   fuzzy logic as taxa_RPKM_generate.py (exact, then case-insensitive,
+ *   then substring).
+ */
+export async function drawHeatmapFiltered(taxonNames) {
+    await _drawHeatmapCore(taxonNames);
+}
+
+
+// ── Core renderer ────────────────────────────────────────────
+
+async function _drawHeatmapCore(filterSet) {
     const [raw, ecToMapText, superpathRows] = await Promise.all([
         d3.tsv('databases/RPKM_table.tsv'),
         d3.text('databases/EC_pathway.txt'),
         d3.csv('databases/pathway_to_superpathway.csv'),
     ]);
 
-    // --- Build EC → superpathway lookup (same logic as violin.js) ---
+    // --- Build EC → superpathway lookup ---
     const ecToMap = {};
     for (const line of ecToMapText.split('\n')) {
         const [left, right] = line.trim().split('\t');
@@ -30,24 +50,69 @@ export async function drawHeatmap() {
     const mapToSuper = {};
     for (const row of superpathRows) mapToSuper[row['Pathway ID']] = row['Superpathway'];
 
-    // --- Identify the top 20 taxa columns ---
+    // --- Identify taxon columns ---
     const FIXED = new Set(['GeneID', 'EC#', 'Length', 'Reads', 'ECF', 'RPKM', 'Bacteria']);
     const allTaxonCols = Object.keys(raw[0] || {}).filter(k => !FIXED.has(k.replace(/^\uFEFF/, '')));
 
-    // Sum total RPKM per taxon to pick the top 20
-    const taxonTotals = {};
-    for (const col of allTaxonCols) {
-        taxonTotals[col] = d3.sum(raw, r => +r[col] || 0);
-    }
-    const top20 = Object.entries(taxonTotals)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 20)
-        .map(([col]) => col);
+    // --- Determine which columns to display ---
+    let displayCols;
 
-    // --- Build the matrix: taxon × superpathway → summed RPKM ---
-    // For each row in RPKM_table: for each top-20 taxon with non-zero value,
-    // map EC# → superpathways and accumulate RPKM into that cell.
-    const matrix = {};  // matrix[taxon][superpathway] = sum
+    if (filterSet && filterSet.size > 0) {
+        // Match filterSet names against actual column names
+        // (fuzzy: exact → case-insensitive → substring, same as Python script)
+        const matched = new Set();
+
+        for (const wantedName of filterSet) {
+            // Exact match
+            if (allTaxonCols.includes(wantedName)) {
+                matched.add(wantedName);
+                continue;
+            }
+            // Case-insensitive
+            const lower = wantedName.toLowerCase();
+            const ci = allTaxonCols.find(c => c.toLowerCase() === lower);
+            if (ci) { matched.add(ci); continue; }
+            // Substring
+            const sub = allTaxonCols.find(c =>
+                c.toLowerCase().includes(lower) || lower.includes(c.toLowerCase())
+            );
+            if (sub) matched.add(sub);
+        }
+
+        displayCols = [...matched];
+
+        // Sort by total RPKM descending
+        const taxonTotals = {};
+        for (const col of displayCols) {
+            taxonTotals[col] = d3.sum(raw, r => +r[col] || 0);
+        }
+        displayCols.sort((a, b) => (taxonTotals[b] || 0) - (taxonTotals[a] || 0));
+
+        // Show a title note
+        _setHeatmapTitle(
+            `Enzyme Expression by Superpathway × Taxon (RPKM) — ${displayCols.length} selected taxon${displayCols.length !== 1 ? 'a' : ''}`
+        );
+    } else {
+        // Default: top-20 by total RPKM
+        const taxonTotals = {};
+        for (const col of allTaxonCols) {
+            taxonTotals[col] = d3.sum(raw, r => +r[col] || 0);
+        }
+        displayCols = Object.entries(taxonTotals)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 20)
+            .map(([col]) => col);
+
+        _setHeatmapTitle('Enzyme Expression by Superpathway × Taxon (RPKM)');
+    }
+
+    if (displayCols.length === 0) {
+        _renderEmpty('No matching taxa found in RPKM table for the selected nodes.');
+        return;
+    }
+
+    // --- Build matrix: taxon × superpathway → summed RPKM ---
+    const matrix = {};
     const superpathSet = new Set();
 
     for (const row of raw) {
@@ -63,7 +128,7 @@ export async function drawHeatmap() {
         }
         if (superpaths.size === 0) continue;
 
-        for (const taxon of top20) {
+        for (const taxon of displayCols) {
             const taxVal = +row[taxon] || 0;
             if (taxVal === 0) continue;
             if (!matrix[taxon]) matrix[taxon] = {};
@@ -76,18 +141,26 @@ export async function drawHeatmap() {
 
     const superpaths = [...superpathSet].sort();
 
+    if (superpaths.length === 0) {
+        _renderEmpty('No superpathway data found for the selected taxa.');
+        return;
+    }
+
+    // --- Dynamic cell sizing: if many columns, shrink cells ---
+    const cellW = displayCols.length > 20 ? Math.max(20, Math.floor(900 / displayCols.length)) : CELL_W;
+    const cellH = CELL_H;
+
     // --- Render ---
-    const W = CELL_W * top20.length;
-    const H = CELL_H * superpaths.length;
+    const W = cellW * displayCols.length;
+    const H = cellH * superpaths.length;
     const totalW = W + MARGIN.left + MARGIN.right;
     const totalH = H + MARGIN.top  + MARGIN.bottom;
 
     const container = d3.select('#heatmap-chart');
     container.selectAll('*').remove();
 
-    // Color scale: 0 → light peach, max → dark purple (coral→purple ramp)
     const maxVal = d3.max(superpaths, sp =>
-        d3.max(top20, t => matrix[t]?.[sp] || 0)
+        d3.max(displayCols, t => matrix[t]?.[sp] || 0)
     );
     const color = d3.scaleSequential()
         .domain([0, maxVal])
@@ -105,13 +178,13 @@ export async function drawHeatmap() {
 
     // Cells
     superpaths.forEach((sp, si) => {
-        top20.forEach((taxon, ti) => {
+        displayCols.forEach((taxon, ti) => {
             const val = matrix[taxon]?.[sp] || 0;
             svg.append('rect')
-                .attr('x',      ti * CELL_W)
-                .attr('y',      si * CELL_H)
-                .attr('width',  CELL_W)
-                .attr('height', CELL_H)
+                .attr('x',      ti * cellW)
+                .attr('y',      si * cellH)
+                .attr('width',  cellW)
+                .attr('height', cellH)
                 .attr('rx',     0)
                 .attr('fill',   val === 0 ? '#f5f5f2' : color(val))
                 .on('mousemove', function(event) {
@@ -133,7 +206,7 @@ export async function drawHeatmap() {
         .data(superpaths).enter()
         .append('text')
         .attr('x',  -8)
-        .attr('y',  (d, i) => i * CELL_H + CELL_H / 2)
+        .attr('y',  (d, i) => i * cellH + cellH / 2)
         .attr('dy', '0.35em')
         .style('text-anchor', 'end')
         .style('font-size', '11px')
@@ -142,16 +215,16 @@ export async function drawHeatmap() {
 
     // X axis — taxon labels (rotated)
     svg.selectAll('.taxon-label')
-        .data(top20).enter()
+        .data(displayCols).enter()
         .append('text')
-        .attr('x',  (d, i) => i * CELL_W + CELL_W / 2)
+        .attr('x',  (d, i) => i * cellW + cellW / 2)
         .attr('y',  -8)
         .attr('dy', '0.35em')
         .style('text-anchor', 'start')
-        .style('font-size', '10px')
+        .style('font-size', cellW < 30 ? '8px' : '10px')
         .style('fill', '#333')
         .attr('transform', (d, i) =>
-            `rotate(-45, ${i * CELL_W + CELL_W / 2}, -8)`
+            `rotate(-45, ${i * cellW + cellW / 2}, -8)`
         )
         .text(d => d);
 
@@ -161,74 +234,64 @@ export async function drawHeatmap() {
     const defs = svg.append('defs');
     const grad = defs.append('linearGradient')
         .attr('id', 'hmGrad')
-        .attr('x1', '0%')
-        .attr('y1', '100%')   // bottom
-        .attr('x2', '0%')
-        .attr('y2', '0%');    // top
+        .attr('x1', '0%').attr('y1', '100%')
+        .attr('x2', '0%').attr('y2', '0%');
     [0, 0.2, 0.4, 0.6, 0.8, 1].forEach(t => {
         grad.append('stop')
             .attr('offset', `${t * 100}%`)
             .attr('stop-color', color(t * maxVal));
     });
-// Gradient bar
-    svg.append('rect')
-        .attr('x', lx)
-        .attr('y', ly)
-        .attr('width', legendW)
-        .attr('height', legendH)
-        .attr('rx', 3)
-        .attr('fill', 'url(#hmGrad)');
 
-// Min label (bottom)
+    svg.append('rect')
+        .attr('x', lx).attr('y', ly)
+        .attr('width', legendW).attr('height', legendH)
+        .attr('rx', 3).attr('fill', 'url(#hmGrad)');
+
     svg.append('text')
-        .attr('x', lx + legendW + 6)
-        .attr('y', ly + legendH)
-        .attr('dy', '0.35em')
-        .style('font-size', '9px')
-        .style('fill', '#666')
+        .attr('x', lx + legendW + 6).attr('y', ly + legendH)
+        .attr('dy', '0.35em').style('font-size', '9px').style('fill', '#666')
         .text('0');
 
-// Max label (top)
     svg.append('text')
-        .attr('x', lx + legendW + 6)
-        .attr('y', ly)
-        .attr('dy', '0.35em')
-        .style('font-size', '9px')
-        .style('fill', '#666')
+        .attr('x', lx + legendW + 6).attr('y', ly)
+        .attr('dy', '0.35em').style('font-size', '9px').style('fill', '#666')
         .text(d3.format('.0f')(maxVal));
 
-// Title
     svg.append('text')
-        .attr('x', lx + legendW / 2)
-        .attr('y', ly - 8)
+        .attr('x', lx + legendW / 2).attr('y', ly - 8)
         .attr('text-anchor', 'middle')
-        .style('font-size', '10px')
-        .style('fill', '#444')
+        .style('font-size', '10px').style('fill', '#444')
         .text('RPKM');
 
-    // Helper: map value → y position on legend
-    const legendScale = d3.scaleLinear()
-        .domain([0, maxVal])
-        .range([legendH, 0]);  // bottom → top
-
-// Tick values you want
+    const legendScale = d3.scaleLinear().domain([0, maxVal]).range([legendH, 0]);
     const step = 10000;
-
-// Generate intermediate ticks
     const dynamicTicks = d3.range(step, maxVal, step);
-
-// Final ticks: include 0 and maxVal
     const ticks = [0, ...dynamicTicks, maxVal];
 
-// Draw tick labels
     svg.selectAll('.legend-tick')
-        .data(ticks)
-        .enter()
+        .data(ticks).enter()
         .append('text')
         .attr('x', lx + legendW + 6)
         .attr('y', d => ly + legendScale(d))
         .attr('dy', '0.35em')
-        .style('font-size', '9px')
-        .style('fill', '#666')
+        .style('font-size', '9px').style('fill', '#666')
         .text(d => d3.format('.0f')(d));
+}
+
+
+// ── Helpers ───────────────────────────────────────────────────
+
+function _setHeatmapTitle(text) {
+    const el = document.querySelector('#panel-heatmap .panel-title');
+    if (el) el.textContent = text;
+}
+
+function _renderEmpty(message) {
+    const container = d3.select('#heatmap-chart');
+    container.selectAll('*').remove();
+    container.append('p')
+        .style('color', '#888')
+        .style('padding', '20px')
+        .style('font-style', 'italic')
+        .text(message);
 }

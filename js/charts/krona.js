@@ -2,11 +2,18 @@
 //  krona.js — Sunburst (Krona-style) taxonomic chart
 //
 //  Exports:
-//    initKrona()     — call once at startup to wire slider callbacks
-//    rebuildKrona()  — clear + re-filter + redraw from current state
-//    drawKrona()     — pure renderer: data in, SVG node out
-//    filterTree()    — pure function: tree in, filtered tree out
-//    nodeValue()     — pure helper: sum a node's leaf values
+//    initKrona()          — call once at startup to wire slider callbacks
+//    rebuildKrona()       — clear + re-filter + redraw from current state
+//    drawKrona()          — pure renderer: data in, SVG node out
+//    filterTree()         — pure function: tree in, filtered tree out
+//    nodeValue()          — pure helper: sum a node's leaf values
+//    getSelectedKronaNodes() — returns Set of currently selected node names
+//    clearKronaSelection()   — clears all selections
+//
+//  Shift+click multi-select:
+//    Hold Shift and click arcs to toggle selection (highlighted with a
+//    glowing ring). Selected nodes + all descendants feed into the
+//    "Sync to Heatmap" workflow in main.js.
 //
 //  Color system (taxaColors.js):
 //    Phylum  → fixed base hue (Ana's conventions)
@@ -20,6 +27,31 @@ import { loadKronaData }  from '/js/dataLoader.js';
 import { getTopN, onSliderChange } from '/js/sliders.js';
 import { taxaColor }      from '/js/taxaColors.js';
 
+
+// ── Selection state ──────────────────────────────────────────
+// Stores the data-node objects (d3 hierarchy nodes) that the user
+// has shift-clicked. Keyed by node name for quick toggle.
+const _selectedNodes = new Map();   // name → d3 hierarchy node
+
+export function getSelectedKronaNodes() {
+    return new Map(_selectedNodes);
+}
+
+export function clearKronaSelection() {
+    _selectedNodes.clear();
+    _updateSyncButton();
+}
+
+function _updateSyncButton() {
+    const btn = document.getElementById('btn-sync-heatmap');
+    if (!btn) return;
+    if (_selectedNodes.size > 0) {
+        btn.style.display = 'inline-flex';
+        btn.textContent   = `Sync ${_selectedNodes.size} taxon${_selectedNodes.size > 1 ? 'a' : ''} → Heatmap`;
+    } else {
+        btn.style.display = 'none';
+    }
+}
 
 // ── Init (called once from main.js) ─────────────────────────
 
@@ -101,6 +133,29 @@ export function filterTree(root, topN) {
 }
 
 
+// ── Collect all taxon column names under a node ───────────────
+// Recursively gathers leaf-level names (or the node name itself if leaf).
+// Used by heatmap sync to know which RPKM_table columns to include.
+export function collectDescendantNames(hierarchyNode) {
+    const names = new Set();
+
+    function walk(d) {
+        if (!d.children || d.children.length === 0) {
+            // leaf (species level) — record the name
+            names.add(d.data.name);
+        } else {
+            // also record intermediate nodes (taxon columns in RPKM_table
+            // may exist at any level, e.g. "Bacteroidetes" directly)
+            names.add(d.data.name);
+            d.children.forEach(walk);
+        }
+    }
+
+    walk(hierarchyNode);
+    return names;
+}
+
+
 // ── Renderer ─────────────────────────────────────────────────
 
 export function drawKrona(data, totalValue, fontSize = 10) {
@@ -133,6 +188,15 @@ export function drawKrona(data, totalValue, fontSize = 10) {
         .innerRadius(d => d.y0 * radius)
         .outerRadius(d => Math.max(d.y0 * radius, d.y1 * radius - 1));
 
+    // Slightly expanded arc for selection highlight ring
+    const arcHighlight = d3.arc()
+        .startAngle(d => d.x0 - 0.01)
+        .endAngle(d => d.x1 + 0.01)
+        .padAngle(0)
+        .padRadius(radius * 1.5)
+        .innerRadius(d => d.y0 * radius - 3)
+        .outerRadius(d => Math.max(d.y0 * radius, d.y1 * radius - 1) + 3);
+
     const svg = d3.create('svg')
         .attr('viewBox', [-width / 2, -height / 2, width, height])
         .style('font', `${fontSize}px sans-serif`)
@@ -141,12 +205,19 @@ export function drawKrona(data, totalValue, fontSize = 10) {
 
     const zoomGroup = svg.append('g');
 
+    // ── Shift+click hint label ────────────────────────────────
+    svg.append('text')
+        .attr('x', -width / 2 + 12)
+        .attr('y', -height / 2 + 18)
+        .style('font-size', '11px')
+        .style('fill', '#888')
+        .style('font-style', 'italic')
+        .text('Shift+click to select taxa for heatmap');
+
+    // ── Selection highlight layer (behind arcs) ───────────────
+    const highlightLayer = zoomGroup.append('g').attr('class', 'selection-layer');
+
     // ── Arcs ──────────────────────────────────────────────────
-    //
-    // Color assignment:
-    //   "Other *" nodes → neutral grey so they don't distract
-    //   Real taxa       → taxaColor(d) from our hierarchical system
-    //
     const path = zoomGroup.append('g')
         .selectAll('path')
         .data(root.descendants().slice(1))
@@ -154,13 +225,10 @@ export function drawKrona(data, totalValue, fontSize = 10) {
         .attr('fill', d => {
             const name = d.data.name;
             if (name.startsWith('Other ')) return '#cccccc';
-            // Check if this node or its phylum ancestor is Unclassified
             const phylumNode = d.ancestors().find(a => a.depth === 1);
             if (phylumNode && phylumNode.data.name.toLowerCase().startsWith('unclassified')) return '#cccccc';
             return taxaColor(d);
         })
-        // Inner rings (branch nodes) slightly more opaque than leaf rings
-        // to reinforce the "darker inside, lighter outside" visual logic
         .attr('fill-opacity', d => arcVisible(d.current) ? (d.children ? 0.85 : 0.70) : 0)
         .attr('pointer-events', d => arcVisible(d.current) ? 'auto' : 'none')
         .attr('d', d => arc(d.current))
@@ -176,18 +244,42 @@ export function drawKrona(data, totalValue, fontSize = 10) {
             tooltip.innerHTML = `
                 <strong>${namePath}</strong><br>
                 ${metricLabel}: ${metricValue}<br>
-                Percentage: ${((d.value / totalValue) * 100).toFixed(2)}%
+                Percentage: ${((d.value / totalValue) * 100).toFixed(2)}%<br>
+                <span style="color:#aaa;font-style:italic">Shift+click to select</span>
             `;
             tooltip.style.left = (event.pageX + 10) + 'px';
             tooltip.style.top  = (event.pageY + 10) + 'px';
         })
         .on('mouseleave', () => {
             document.getElementById('tooltip').style.opacity = 0;
+        })
+        .on('click', function(event, d) {
+            if (event.shiftKey) {
+                // ── Shift+click: toggle selection ──
+                event.stopPropagation();
+                const name = d.data.name;
+
+                if (name.startsWith('Other ')) return; // can't select collapsed "Other" nodes
+
+                if (_selectedNodes.has(name)) {
+                    _selectedNodes.delete(name);
+                } else {
+                    _selectedNodes.set(name, d);
+                }
+
+                _updateSyncButton();
+                _redrawSelectionRings(highlightLayer, root, arc, arcHighlight, angularSpan, radius);
+            } else {
+                // ── Normal click: zoom ──
+                clicked(event, d);
+            }
         });
 
     path.filter(d => d.children)
-        .style('cursor', 'pointer')
-        .on('click', clicked);
+        .style('cursor', 'pointer');
+
+    // Draw initial selection rings (in case we're rebuilding with existing selection)
+    _redrawSelectionRings(highlightLayer, root, arc, arcHighlight, angularSpan, radius);
 
     // ── Labels ────────────────────────────────────────────────
     const label = zoomGroup.append('g')
@@ -200,7 +292,6 @@ export function drawKrona(data, totalValue, fontSize = 10) {
         .attr('dy', '0.35em')
         .attr('fill-opacity', d => +labelVisible(d.current))
         .attr('transform',    d => labelTransform(d.current))
-        // Darker text for inner (darker) rings, lighter for outer rings
         .attr('fill', d => d.depth <= 2 ? '#1a1a1a' : '#333333')
         .text(d => d.data.name);
 
@@ -210,7 +301,9 @@ export function drawKrona(data, totalValue, fontSize = 10) {
         .attr('r', radius)
         .attr('fill', 'none')
         .attr('pointer-events', 'all')
-        .on('click', clicked);
+        .on('click', (event, d) => {
+            if (!event.shiftKey) clicked(event, d);
+        });
 
     // ── Click to zoom ─────────────────────────────────────────
     function clicked(event, p) {
@@ -246,6 +339,11 @@ export function drawKrona(data, totalValue, fontSize = 10) {
             .transition(t)
             .attr('fill-opacity', d => +labelVisible(d.target))
             .attrTween('transform', d => () => labelTransform(d.current));
+
+        // Re-draw selection rings after zoom transition
+        t.on('end', () => {
+            _redrawSelectionRings(highlightLayer, root, arc, arcHighlight, angularSpan, radius);
+        });
     }
 
     // ── Visibility helpers ────────────────────────────────────
@@ -264,4 +362,43 @@ export function drawKrona(data, totalValue, fontSize = 10) {
     svg.call(zoom);
 
     return svg.node();
+}
+
+
+// ── Selection ring renderer ───────────────────────────────────
+// Draws glowing highlight rings over selected nodes.
+// Called after every selection change and after zoom animations.
+function _redrawSelectionRings(layer, root, arc, arcHighlight, angularSpan, radius) {
+    layer.selectAll('*').remove();
+
+    if (_selectedNodes.size === 0) return;
+
+    // Walk the hierarchy to find nodes whose name is in _selectedNodes
+    root.descendants().slice(1).forEach(d => {
+        if (!_selectedNodes.has(d.data.name)) return;
+        if (!arcVisible(d.current)) return;
+
+        // Glow filter reference is defined per-SVG; we use a drop-shadow trick
+        // via stroke + opacity instead of a filter for portability.
+
+        // Outer glow (wide, transparent stroke)
+        layer.append('path')
+            .attr('d', arcHighlight(d.current))
+            .attr('fill', 'none')
+            .attr('stroke', '#FFD700')
+            .attr('stroke-width', 6)
+            .attr('stroke-opacity', 0.35)
+            .attr('pointer-events', 'none');
+
+        // Inner crisp ring
+        layer.append('path')
+            .attr('d', arcHighlight(d.current))
+            .attr('fill', 'none')
+            .attr('stroke', '#FFD700')
+            .attr('stroke-width', 2)
+            .attr('stroke-opacity', 0.95)
+            .attr('pointer-events', 'none');
+    });
+
+    function arcVisible(d) { return d.y1 <= 4 && d.y0 >= 1 && d.x1 > d.x0; }
 }

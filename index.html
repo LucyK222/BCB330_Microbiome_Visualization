@@ -14,11 +14,10 @@
 </header>
 
 <div class="tab-bar">
-  <!-- data-tab replaces inline onclick="switchTab('violin', this)" -->
   <button class="tab-btn active" data-tab="violin">Violin Plot</button>
   <button class="tab-btn"        data-tab="krona">Krona Chart</button>
   <button class="tab-btn"        data-tab="composition">Composition</button>
-  <button class="tab-btn" data-tab="heatmap">Heatmap</button>
+  <button class="tab-btn"        data-tab="heatmap">Heatmap</button>
 </div>
 
 <!-- ── VIOLIN PANEL ── -->
@@ -59,10 +58,18 @@
     </div>
   </div>
 
-  <!-- onclick removed — wired in main.js via addEventListener -->
-  <button id="btn-sync-violin" style="display:none">
-    Sync to Violin
-  </button>
+  <!-- Sync buttons (shown only when selections exist) -->
+  <div class="sync-bar">
+    <button id="btn-sync-violin" style="display:none">
+      Sync to Violin
+    </button>
+    <button id="btn-sync-heatmap" style="display:none">
+      Sync to Heatmap
+    </button>
+    <button id="btn-clear-selection" style="display:none">
+      ✕ Clear Selection
+    </button>
+  </div>
 
   <div class="slider-panel">
     <div class="slider-group">
@@ -125,11 +132,6 @@
   <div id="heatmap-chart" style="overflow-x: auto;"></div>
 </div>
 
-<!--
-  ONE script tag replaces all inline <script> blocks.
-  type="module" enables import/export across all js/ files.
-  defer is implicit for modules — runs after the DOM is ready.
--->
 <script type="module" src="js/main.js"></script>
 
 </body>

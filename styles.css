@@ -159,3 +159,75 @@ header p {
     background: white;
     color: #2c3e50;
 }
+
+/* ── Append these rules to styles.css ── */
+
+/* ── Sync bar (Krona panel — holds Sync to Violin, Sync to Heatmap, Clear) ── */
+.sync-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+    min-height: 36px;   /* prevents layout jump when buttons appear/disappear */
+}
+
+/* Base style for all sync / action buttons */
+.sync-bar button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+    white-space: nowrap;
+}
+
+/* Sync to Violin — teal (existing colour scheme) */
+#btn-sync-violin {
+    background: #1abc9c;
+    color: white;
+}
+#btn-sync-violin:hover {
+    background: #16a085;
+    box-shadow: 0 2px 8px rgba(26,188,156,0.35);
+    transform: translateY(-1px);
+}
+
+/* Sync to Heatmap — amber/gold to match the selection ring colour */
+#btn-sync-heatmap {
+    background: #f39c12;
+    color: white;
+}
+#btn-sync-heatmap:hover {
+    background: #d68910;
+    box-shadow: 0 2px 8px rgba(243,156,18,0.35);
+    transform: translateY(-1px);
+}
+
+/* Clear Selection — subtle ghost button */
+#btn-clear-selection {
+    background: transparent;
+    color: #888;
+    border: 1.5px solid #ccc;
+}
+#btn-clear-selection:hover {
+    background: #ffeaea;
+    color: #c0392b;
+    border-color: #e74c3c;
+    transform: translateY(-1px);
+}
+
+/* Pulse animation when Sync to Heatmap first appears */
+@keyframes syncAppear {
+    0%   { transform: scale(0.85); opacity: 0; }
+    60%  { transform: scale(1.06); }
+    100% { transform: scale(1);    opacity: 1; }
+}
+#btn-sync-heatmap[style*="inline-flex"] {
+    animation: syncAppear 0.28s ease-out both;
+}
