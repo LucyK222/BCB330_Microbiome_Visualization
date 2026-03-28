@@ -90,7 +90,7 @@ async function _drawHeatmapCore(filterSet) {
 
         // Show a title note
         _setHeatmapTitle(
-            `Enzyme Expression by Superpathway × Taxon (RPKM) — ${displayCols.length} selected taxon${displayCols.length !== 1 ? 'a' : ''}`
+            `Enzyme Expression by Superpathway × Taxon (RPKM) — ${displayCols.length} selected taxa`
         );
     } else {
         // Default: top-20 by total RPKM
