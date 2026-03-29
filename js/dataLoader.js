@@ -7,6 +7,8 @@
 //    - Results are cached so the same file is never fetched twice
 // ============================================================
 
+// TODO: fix the dependency of loading data (loadrpkmtree)
+
 import { state } from '/js/state.js';
 
 // ── Internal cache ───────────────────────────────────────────

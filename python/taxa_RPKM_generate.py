@@ -6,26 +6,15 @@ with open("../data/taxa_complete.json") as f:
     taxa_complete = json.load(f)
 
 # ── 2. Build a flat lookup: node_name → ancestor path ─────────────────────────
-# Walk the full tree and record, for every node, the list of ancestor names
-# from root down to (and including) that node.
-# Structure: { "Eubacterium sp. 14-2": ["Firmicutes", "Clostridia", ...,"Eubacterium sp. 14-2"] }
-
 lookup = {}   # name → [phylum, class, order, family, genus, species] path
 
 def walk(node, path):
     """Recursively walk the tree, recording each node's full ancestor path."""
     current_path = path + [node["name"]]
+    lookup[node["name"]] = current_path
+    for child in node.get("children", []):
+        walk(child, current_path)
 
-    if "children" not in node or len(node["children"]) == 0:
-        # Leaf node (species level) — record full path
-        lookup[node["name"]] = current_path
-    else:
-        # Internal node — record it too so mixed-rank names can be found
-        lookup[node["name"]] = current_path
-        for child in node["children"]:
-            walk(child, current_path)
-
-# Start from root's children (phylum level), skipping the "root" node itself
 for phylum_node in taxa_complete.get("children", []):
     walk(phylum_node, [])
 
@@ -34,14 +23,11 @@ print(f"Built lookup with {len(lookup)} unique taxon names")
 # ── 3. Load RPKM table ────────────────────────────────────────────────────────
 rpkm_df = pd.read_csv("../databases/RPKM_table.tsv", sep="\t", index_col=0)
 
-# The fixed (non-taxon) columns MetaPro always includes
 FIXED_COLS = {"Length", "Reads", "ECF", "RPKM", "Bacteria"}
-
-# Everything else is a taxon column
 taxon_cols = [c for c in rpkm_df.columns if c not in FIXED_COLS]
 print(f"Found {len(taxon_cols)} taxon columns: {taxon_cols}")
 
-# Sum RPKM values per taxon column
+# Sum RPKM values per taxon column (direct reads assigned to that taxon)
 taxon_rpkm = {}
 for col in taxon_cols:
     numeric_col = pd.to_numeric(rpkm_df[col], errors='coerce').fillna(0)
@@ -56,18 +42,13 @@ for name, val in sorted(taxon_rpkm.items(), key=lambda x: -x[1]):
 # ── 4. Map each taxon name to its hierarchy path ──────────────────────────────
 total_rpkm = sum(taxon_rpkm.values())
 
-# For each taxon column, find its path in the lookup
-# If exact match fails, try case-insensitive or partial match
 def find_path(name):
-    # Exact match
     if name in lookup:
         return lookup[name]
-    # Case-insensitive match
     name_lower = name.lower()
     for key, path in lookup.items():
         if key.lower() == name_lower:
             return path
-    # Partial match — name is a substring of a lookup key or vice versa
     for key, path in lookup.items():
         if name_lower in key.lower() or key.lower() in name_lower:
             return path
@@ -87,29 +68,45 @@ for taxon_name, rpkm_sum in taxon_rpkm.items():
 
 if unmatched:
     print(f"\nWarning: {len(unmatched)} taxa could not be mapped: {unmatched}")
-    print("These will be placed under 'Unmatched Taxa' at the top level.")
 
 # ── 5. Build the RPKM hierarchy ───────────────────────────────────────────────
 #
-# The path from the lookup has variable depth depending on where in the tree
-# the taxon was found. We reconstruct a nested dict, then convert to JSON.
+# KEY DISTINCTION:
+#   _direct_rpkm  = RPKM summed from THIS taxon's own column in RPKM_table
+#                   (reads that MetaPro could only classify to this level)
+#   _total_rpkm   = _direct_rpkm + all descendant _total_rpkm values
+#                   (used for arc proportions in the sunburst chart)
 #
-# path examples:
-#   ["Firmicutes"]                                    → phylum only
-#   ["Firmicutes", "Clostridia"]                      → phylum + class
-#   ["Firmicutes", ..., "Eubacterium", "Eub. sp 14-2"] → full depth
+# Example: Proteobacteria column has 6,000 RPKM (reads assigned only to phylum),
+#          but Desulfovibrionaceae (a descendant) has 10,000 RPKM.
+#          → Proteobacteria _direct_rpkm = 6,000
+#          → Proteobacteria _total_rpkm  = 6,000 + 10,000 + (other descendants)
 
 def insert_path(tree_dict, path, rpkm_value, percentage):
     """
     Insert a taxon into a nested dict structure.
-    tree_dict is mutated in place.
+    Each node tracks:
+      _direct_rpkm  — RPKM from this taxon's own column (set only at the matched level)
+      _total_rpkm   — accumulated total including all descendants
+      _percentage   — fraction of total_rpkm across all taxa
     """
     node = tree_dict
     for i, level_name in enumerate(path):
         if level_name not in node:
-            node[level_name] = {"_rpkm": 0.0, "_percentage": 0.0, "_children": {}}
-        node[level_name]["_rpkm"]       += rpkm_value
-        node[level_name]["_percentage"] += percentage
+            node[level_name] = {
+                "_direct_rpkm": 0.0,
+                "_total_rpkm":  0.0,
+                "_percentage":  0.0,
+                "_children":    {}
+            }
+        # Every ancestor accumulates the total
+        node[level_name]["_total_rpkm"]  += rpkm_value
+        node[level_name]["_percentage"]  += percentage
+
+        # Only the deepest node in the path (the matched taxon itself) gets direct credit
+        if i == len(path) - 1:
+            node[level_name]["_direct_rpkm"] += rpkm_value
+
         node = node[level_name]["_children"]
 
 tree_dict = {}
@@ -124,26 +121,33 @@ for taxon_name in unmatched:
     pct = rpkm_sum / total_rpkm if total_rpkm > 0 else 0
     insert_path(tree_dict, ["Unmatched Taxa", taxon_name], rpkm_sum, pct)
 
+
 def dict_to_json(name, node_dict):
-    """Convert the nested dict structure into the same JSON format as taxa_complete.json"""
+    """
+    Convert the nested dict structure into JSON.
+    Each node gets:
+      - name, percentage (same as before)
+      - direct_rpkm: RPKM assigned directly to this level (0 if none)
+      - children OR value (value = _total_rpkm for leaf nodes)
+    """
     children = []
     for child_name, child_data in node_dict["_children"].items():
         children.append(dict_to_json(child_name, child_data))
 
     result = {
-        "name":       name,
-        "percentage": round(node_dict["_percentage"], 6),
+        "name":         name,
+        "percentage":   round(node_dict["_percentage"],  6),
+        "direct_rpkm":  round(node_dict["_direct_rpkm"], 4),
     }
 
     if children:
         result["children"] = children
     else:
-        # Leaf node: use rpkm as value (mirrors how taxa_complete.json uses read count)
-        result["value"] = round(node_dict["_rpkm"], 4)
+        # Leaf node: value drives arc size — use total (same as before)
+        result["value"] = round(node_dict["_total_rpkm"], 4)
 
     return result
 
-# Build the root node
 root_children = []
 for phylum_name, phylum_data in tree_dict.items():
     root_children.append(dict_to_json(phylum_name, phylum_data))

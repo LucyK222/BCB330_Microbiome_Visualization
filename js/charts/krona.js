@@ -29,8 +29,6 @@ import { taxaColor }      from '/js/taxaColors.js';
 
 
 // ── Selection state ──────────────────────────────────────────
-// Stores the data-node objects (d3 hierarchy nodes) that the user
-// has shift-clicked. Keyed by node name for quick toggle.
 const _selectedNodes = new Map();   // name → d3 hierarchy node
 
 export function getSelectedKronaNodes() {
@@ -134,18 +132,13 @@ export function filterTree(root, topN) {
 
 
 // ── Collect all taxon column names under a node ───────────────
-// Recursively gathers leaf-level names (or the node name itself if leaf).
-// Used by heatmap sync to know which RPKM_table columns to include.
 export function collectDescendantNames(hierarchyNode) {
     const names = new Set();
 
     function walk(d) {
         if (!d.children || d.children.length === 0) {
-            // leaf (species level) — record the name
             names.add(d.data.name);
         } else {
-            // also record intermediate nodes (taxon columns in RPKM_table
-            // may exist at any level, e.g. "Bacteroidetes" directly)
             names.add(d.data.name);
             d.children.forEach(walk);
         }
@@ -188,7 +181,6 @@ export function drawKrona(data, totalValue, fontSize = 10) {
         .innerRadius(d => d.y0 * radius)
         .outerRadius(d => Math.max(d.y0 * radius, d.y1 * radius - 1));
 
-    // Slightly expanded arc for selection highlight ring
     const arcHighlight = d3.arc()
         .startAngle(d => d.x0 - 0.01)
         .endAngle(d => d.x1 + 0.01)
@@ -205,7 +197,6 @@ export function drawKrona(data, totalValue, fontSize = 10) {
 
     const zoomGroup = svg.append('g');
 
-    // ── Shift+click hint label ────────────────────────────────
     svg.append('text')
         .attr('x', -width / 2 + 12)
         .attr('y', -height / 2 + 18)
@@ -214,7 +205,6 @@ export function drawKrona(data, totalValue, fontSize = 10) {
         .style('font-style', 'italic')
         .text('Shift+click to select taxa for heatmap');
 
-    // ── Selection highlight layer (behind arcs) ───────────────
     const highlightLayer = zoomGroup.append('g').attr('class', 'selection-layer');
 
     // ── Arcs ──────────────────────────────────────────────────
@@ -233,33 +223,58 @@ export function drawKrona(data, totalValue, fontSize = 10) {
         .attr('pointer-events', d => arcVisible(d.current) ? 'auto' : 'none')
         .attr('d', d => arc(d.current))
         .on('mousemove', function(event, d) {
-            const tooltip     = document.getElementById('tooltip');
-            const namePath    = d.ancestors().map(x => x.data.name).reverse().join(' / ');
-            const metricLabel = state.kronaMode === 'reads' ? 'Reads' : 'RPKM';
-            const metricValue = state.kronaMode === 'reads'
-                ? d.value
-                : d.value.toFixed(2);
+            const tooltip  = document.getElementById('tooltip');
+            const namePath = d.ancestors().map(x => x.data.name).reverse().join(' / ');
+
+            if (state.kronaMode === 'reads') {
+                // ── Reads mode: simple tooltip ──
+                tooltip.innerHTML = `
+                    <strong>${namePath}</strong><br>
+                    Reads: ${d.value}<br>
+                    Percentage: ${((d.value / totalValue) * 100).toFixed(2)}%<br>
+                    <span style="color:#aaa;font-style:italic">Shift+click to select</span>
+                `;
+            } else {
+                // ── RPKM mode: show total + direct RPKM ──
+                // d.value = total RPKM (used for arc size — includes all descendants)
+                // d.data.direct_rpkm = RPKM assigned directly to this taxon level
+                const totalRpkm  = d.value;
+                const directRpkm = d.data.direct_rpkm || 0;
+                const pct        = ((totalRpkm / totalValue) * 100).toFixed(2);
+
+                // Build the direct RPKM line — only show if this node has direct reads
+                // (i.e. the RPKM table had a column for exactly this taxon)
+                let directLine = '';
+                if (directRpkm > 0) {
+                    const directPct = ((directRpkm / totalValue) * 100).toFixed(2);
+                    directLine = `
+                        <span style="color:#f0c040">&#9658; Direct RPKM: ${directRpkm.toFixed(2)} (${directPct}%)</span><br>
+                        <span style="color:#aaa;font-size:10px;font-style:italic">
+                            (reads assigned only to this level, not to any descendant)
+                        </span><br>
+                    `;
+                }
+
+                tooltip.innerHTML = `
+                    <strong>${namePath}</strong><br>
+                    Total RPKM: ${totalRpkm.toFixed(2)} (${pct}%)<br>
+                    ${directLine}
+                    <span style="color:#aaa;font-style:italic">Shift+click to select</span>
+                `;
+            }
 
             tooltip.style.opacity = 1;
-            tooltip.innerHTML = `
-                <strong>${namePath}</strong><br>
-                ${metricLabel}: ${metricValue}<br>
-                Percentage: ${((d.value / totalValue) * 100).toFixed(2)}%<br>
-                <span style="color:#aaa;font-style:italic">Shift+click to select</span>
-            `;
-            tooltip.style.left = (event.pageX + 10) + 'px';
-            tooltip.style.top  = (event.pageY + 10) + 'px';
+            tooltip.style.left    = (event.pageX + 10) + 'px';
+            tooltip.style.top     = (event.pageY + 10) + 'px';
         })
         .on('mouseleave', () => {
             document.getElementById('tooltip').style.opacity = 0;
         })
         .on('click', function(event, d) {
             if (event.shiftKey) {
-                // ── Shift+click: toggle selection ──
                 event.stopPropagation();
                 const name = d.data.name;
-
-                if (name.startsWith('Other ')) return; // can't select collapsed "Other" nodes
+                if (name.startsWith('Other ')) return;
 
                 if (_selectedNodes.has(name)) {
                     _selectedNodes.delete(name);
@@ -270,7 +285,6 @@ export function drawKrona(data, totalValue, fontSize = 10) {
                 _updateSyncButton();
                 _redrawSelectionRings(highlightLayer, root, arc, arcHighlight, angularSpan, radius);
             } else {
-                // ── Normal click: zoom ──
                 clicked(event, d);
             }
         });
@@ -278,7 +292,6 @@ export function drawKrona(data, totalValue, fontSize = 10) {
     path.filter(d => d.children)
         .style('cursor', 'pointer');
 
-    // Draw initial selection rings (in case we're rebuilding with existing selection)
     _redrawSelectionRings(highlightLayer, root, arc, arcHighlight, angularSpan, radius);
 
     // ── Labels ────────────────────────────────────────────────
@@ -312,12 +325,10 @@ export function drawKrona(data, totalValue, fontSize = 10) {
 
         const span = p.x1 - p.x0;
 
-        // Leaf node: zoom it to fill the full ring
         if (!p.children || p.children.length === 0) {
             root.each(d => {
                 d.target = { x0: 0, x1: 0, y0: d.y0, y1: d.y1 };
             });
-            // Place the leaf at y0=1, y1=2 so it renders as the innermost ring
             p.target = { x0: 0, x1: angularSpan, y0: 1, y1: 2 };
 
             const t = svg.transition().duration(event.altKey ? 7500 : 750);
@@ -374,7 +385,6 @@ export function drawKrona(data, totalValue, fontSize = 10) {
             .attr('fill-opacity', d => +labelVisible(d.target))
             .attrTween('transform', d => () => labelTransform(d.current));
 
-        // Re-draw selection rings after zoom transition
         t.on('end', () => {
             _redrawSelectionRings(highlightLayer, root, arc, arcHighlight, angularSpan, radius);
         });
@@ -400,22 +410,15 @@ export function drawKrona(data, totalValue, fontSize = 10) {
 
 
 // ── Selection ring renderer ───────────────────────────────────
-// Draws glowing highlight rings over selected nodes.
-// Called after every selection change and after zoom animations.
 function _redrawSelectionRings(layer, root, arc, arcHighlight, angularSpan, radius) {
     layer.selectAll('*').remove();
 
     if (_selectedNodes.size === 0) return;
 
-    // Walk the hierarchy to find nodes whose name is in _selectedNodes
     root.descendants().slice(1).forEach(d => {
         if (!_selectedNodes.has(d.data.name)) return;
         if (!arcVisible(d.current)) return;
 
-        // Glow filter reference is defined per-SVG; we use a drop-shadow trick
-        // via stroke + opacity instead of a filter for portability.
-
-        // Outer glow (wide, transparent stroke)
         layer.append('path')
             .attr('d', arcHighlight(d.current))
             .attr('fill', 'none')
@@ -424,7 +427,6 @@ function _redrawSelectionRings(layer, root, arc, arcHighlight, angularSpan, radi
             .attr('stroke-opacity', 0.35)
             .attr('pointer-events', 'none');
 
-        // Inner crisp ring
         layer.append('path')
             .attr('d', arcHighlight(d.current))
             .attr('fill', 'none')
