@@ -311,6 +311,40 @@ export function drawKrona(data, totalValue, fontSize = 10) {
         parent.datum(p.parent || root);
 
         const span = p.x1 - p.x0;
+
+        // Leaf node: zoom it to fill the full ring
+        if (!p.children || p.children.length === 0) {
+            root.each(d => {
+                d.target = { x0: 0, x1: 0, y0: d.y0, y1: d.y1 };
+            });
+            // Place the leaf at y0=1, y1=2 so it renders as the innermost ring
+            p.target = { x0: 0, x1: angularSpan, y0: 1, y1: 2 };
+
+            const t = svg.transition().duration(event.altKey ? 7500 : 750);
+            path.transition(t)
+                .tween('data', d => {
+                    const i = d3.interpolate(d.current, d.target);
+                    return t => d.current = i(t);
+                })
+                .filter(function(d) {
+                    return +this.getAttribute('fill-opacity') || arcVisible(d.target);
+                })
+                .attr('fill-opacity', d => d === p ? 0.85 : 0)
+                .attr('pointer-events', d => d === p ? 'auto' : 'none')
+                .attrTween('d', d => () => arc(d.current));
+
+            label.transition(t)
+                .attr('fill-opacity', d => d === p ? 1 : 0)
+                .attrTween('transform', d => () => labelTransform(d.current));
+
+            state.kronaCurrentNode = p;
+            parent.datum(p.parent || root);
+            t.on('end', () => {
+                _redrawSelectionRings(highlightLayer, root, arc, arcHighlight, angularSpan, radius);
+            });
+            return;
+        }
+
         root.each(d => d.target = {
             x0: Math.max(0, Math.min(1, (d.x0 - p.x0) / span)) * angularSpan,
             x1: Math.max(0, Math.min(1, (d.x1 - p.x0) / span)) * angularSpan,
