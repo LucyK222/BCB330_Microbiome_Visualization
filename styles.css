@@ -231,3 +231,34 @@ header p {
 #btn-sync-heatmap[style*="inline-flex"] {
     animation: syncAppear 0.28s ease-out both;
 }
+
+.upload-block {
+    margin-bottom: 20px;
+}
+
+.upload-block label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 16px;
+}
+
+.file-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.file-name {
+    color: #ccc;
+    font-size: 14px;
+}
+
+.upload-actions {
+    margin-top: 20px;
+}
+
+.upload-actions button {
+    margin-right: 10px;
+    padding: 6px 12px;
+    cursor: pointer;
+}
