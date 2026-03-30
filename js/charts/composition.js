@@ -7,8 +7,8 @@
 // ============================================================
 
 import { state }         from '/js/state.js';
-import { loadRpkmTree }  from '/js/dataLoader.js';
-import { getTopN, onSliderChange } from '/js/sliders.js';
+import { loadRpkmTree, loadReadsTree }  from '/js/dataLoader.js';
+import { getCompositionTopN, onSliderChange } from '/js/sliders.js';
 import { nodeValue }     from '/js/charts/krona.js';
 import { taxaColorByName } from '/js/taxaColors.js';
 
@@ -26,24 +26,39 @@ const TOTAL_H   = HEIGHT + MARGIN.top  + MARGIN.bottom;
 // Minimum bar segment height (px) before we bother drawing a label
 const MIN_LABEL_HEIGHT = 14;
 
+// let compositionMode = 'rpkm';
+
 // ── Init ─────────────────────────────────────────────────────
 export function initComposition() {
     onSliderChange(() => {
-        if (state.rpkmTreeData) drawComposition();
+        drawComposition();
     });
 
     document.getElementById('select-fontsize').addEventListener('change', () => {
-        if (state.rpkmTreeData) drawComposition();
+        drawComposition();
     });
 }
 
 // ── Orchestrator ─────────────────────────────────────────────
 export async function drawComposition() {
-    if (!state.rpkmTreeData) {
-        state.rpkmTreeData = await loadRpkmTree();
+    const title = document.querySelector('#panel-composition .panel-title');
+
+    if (state.compositionMode === 'rpkm') {
+        if (!state.rpkmTreeData) {
+            state.rpkmTreeData = await loadRpkmTree();
+        }
+        if (title) title.textContent = 'Taxonomic Composition by Level (RPKM)';
+        const fontSize = parseInt(document.getElementById('select-fontsize').value, 10);
+        _render(state.rpkmTreeData, fontSize);
+
+    } else {
+        if (!state.readsTreeData) {
+            state.readsTreeData = await loadReadsTree();
+        }
+        if (title) title.textContent = 'Taxonomic Composition by Level (Read Counts)';
+        const fontSize = parseInt(document.getElementById('select-fontsize').value, 10);
+        _render(state.readsTreeData, fontSize, 'reads');
     }
-    const fontSize = parseInt(document.getElementById('select-fontsize').value, 10);
-    _render(state.rpkmTreeData, fontSize);
 }
 
 // ── Ancestry map ─────────────────────────────────────────────
@@ -91,9 +106,31 @@ function _render(tree, fontSize = 9) {
     }
 
     const levelData = levels.map(level => {
-        const all   = collectAtDepth(tree, level.depth, 0).sort((a, b) => b.value - a.value);
+        const all = collectAtDepth(tree, level.depth, 0)
+            .sort((a, b) => b.value - a.value);
+
         const total = all.reduce((s, d) => s + d.value, 0);
-        return { level: level.name, taxa: all, total };
+
+        const topNMap = getCompositionTopN();
+
+        const key = level.name.toLowerCase();
+        const topN = topNMap[key];
+
+        let taxa;
+
+        if (all.length > topN) {
+            const top = all.slice(0, topN);
+            const otherValue = all.slice(topN).reduce((s, d) => s + d.value, 0);
+
+            taxa = [
+                ...top,
+                { name: `Other ${level.name}`, value: otherValue }
+            ];
+        } else {
+            taxa = all;
+        }
+
+        return { level: level.name, taxa, total };
     });
 
     // ── 2. SVG ──

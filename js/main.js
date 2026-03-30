@@ -3,7 +3,7 @@
 // ============================================================
 
 import { state }             from '/js/state.js';
-import { initSliders }       from '/js/sliders.js';
+import {compInitSliders, initSliders} from '/js/sliders.js';
 import { drawViolin }        from '/js/charts/violin.js';
 import { initKrona,
     rebuildKrona,
@@ -53,6 +53,13 @@ document.querySelectorAll('input[name="kronaMode"]').forEach(radio => {
     });
 });
 
+document.querySelectorAll('input[name="compositionMode"]').forEach(radio => {
+    radio.addEventListener('change', e => {
+        state.compositionMode = e.target.value;
+        drawComposition();
+    });
+});
+
 
 // ── Sync: Krona → Violin ──────────────────────────────────────
 document.getElementById('btn-sync-violin').addEventListener('click', () => {
@@ -93,6 +100,7 @@ new MutationObserver(() => {
 initSliders();
 initKrona();
 initComposition();
+compInitSliders()
 
 drawViolin();
 rebuildKrona();

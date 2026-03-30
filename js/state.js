@@ -24,7 +24,10 @@ export const state = {
     kronaData:        null,         // raw JSON tree currently loaded
     kronaCurrentNode: null,         // the node the user has drilled into
 
+    // Composition chart state
+    compositionMode: 'rpkm',        // 'reads' | 'rpkm'
+
     // ── Shared data trees ──
     rpkmTreeData: null,             // taxa_rpkm.json, shared by Krona + Composition
-
+    readsTreeData: null
 };

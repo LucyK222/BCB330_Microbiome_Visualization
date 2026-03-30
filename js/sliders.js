@@ -59,6 +59,29 @@ export function getTopN() {
     };
 }
 
+export function getCompositionTopN() {
+    // const map = {
+    //     'Phylum':  'slider-comp-phylum',
+    //     'Class':   'slider-comp-class',
+    //     'Order':   'slider-comp-order',
+    //     'Family':  'slider-comp-family',
+    //     'Genus':   'slider-comp-genus',
+    //     'Species': 'slider-comp-species',
+    // };
+    //
+    // const id = map[levelName];
+    // const el = document.getElementById(id);
+    // return el ? +el.value : 5;
+    return {
+        phylum:  +document.getElementById('slider-comp-phylum').value,
+        class:   +document.getElementById('slider-comp-class').value,
+        order:   +document.getElementById('slider-comp-order').value,
+        family:  +document.getElementById('slider-comp-family').value,
+        genus:   +document.getElementById('slider-comp-genus').value,
+        species: +document.getElementById('slider-comp-species').value,
+    };
+}
+
 /**
  * Wire up all six sliders: update the displayed number label
  * and notify all registered listeners on every change.
@@ -72,6 +95,21 @@ export function initSliders() {
     ['phylum', 'class', 'order', 'family', 'genus', 'species'].forEach(level => {
         const slider = document.getElementById('slider-' + level);
         const label  = document.getElementById('val-' + level);
+
+        slider.addEventListener('input', () => {
+            // Update the visible number next to the slider
+            label.textContent = slider.value;
+
+            // Notify every registered chart
+            _listeners.forEach(fn => fn());
+        });
+    });
+}
+
+export function compInitSliders() {
+    ['phylum', 'class', 'order', 'family', 'genus', 'species'].forEach(level => {
+        const slider = document.getElementById('slider-comp-' + level);
+        const label  = document.getElementById('comp-' + level);
 
         slider.addEventListener('input', () => {
             // Update the visible number next to the slider

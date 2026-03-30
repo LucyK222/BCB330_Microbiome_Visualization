@@ -83,6 +83,50 @@ export async function rebuildKrona() {
 
 
 // ── Tree helpers ─────────────────────────────────────────────
+function computeGlobalTopN(root, topN) {
+    const levels = {
+        1: [],
+        2: [],
+        3: [],
+        4: [],
+        5: [],
+        6: []
+    };
+
+    function collect(node, depth) {
+        if (depth >= 1 && depth <= 6) {
+            levels[depth].push({
+                name: node.name,
+                value: nodeValue(node)
+            });
+        }
+        (node.children || []).forEach(c => collect(c, depth + 1));
+    }
+
+    collect(root, 0);
+
+    const result = {};
+
+    Object.entries(levels).forEach(([depth, arr]) => {
+        const keyMap = {
+            1: 'phylum',
+            2: 'class',
+            3: 'order',
+            4: 'family',
+            5: 'genus',
+            6: 'species'
+        };
+
+        const key = keyMap[depth];
+
+        const sorted = arr.sort((a, b) => b.value - a.value);
+        const top = sorted.slice(0, topN[key]);
+
+        result[depth] = new Set(top.map(d => d.name));
+    });
+
+    return result;
+}
 
 export function nodeValue(node) {
     if (node.value !== undefined) return node.value;
@@ -106,25 +150,51 @@ function filterChildren(children, topN, otherLabel) {
 }
 
 export function filterTree(root, topN) {
+
+    const globalTop = computeGlobalTopN(root, topN);
+
     const config = {
-        1: { limit: topN.phylum,  label: 'Other Phyla'   },
-        2: { limit: topN.class,   label: 'Other Classes'  },
-        3: { limit: topN.order,   label: 'Other Orders'   },
-        4: { limit: topN.family,  label: 'Other Families' },
-        5: { limit: topN.genus,   label: 'Other Genera'   },
-        6: { limit: topN.species, label: 'Other Species'  },
+        1: 'Other Phyla',
+        2: 'Other Classes',
+        3: 'Other Orders',
+        4: 'Other Families',
+        5: 'Other Genera',
+        6: 'Other Species',
     };
 
     function walk(node, depth) {
         if (!node.children) return { ...node };
 
-        let children = node.children.map(c => walk(c, depth + 1));
+        const nextDepth = depth + 1;
+        const allowed = globalTop[nextDepth];
 
-        const cfg = config[depth + 1];
-        if (cfg) children = filterChildren(children, cfg.limit, cfg.label);
+        let kept = [];
+        let otherValue = 0;
+        let otherPct = 0;
 
-        const pct = children.reduce((s, c) => s + (c.percentage || 0), 0);
-        return { ...node, percentage: pct, children };
+        node.children.forEach(child => {
+            const childNode = walk(child, nextDepth);
+
+            if (allowed.has(child.name)) {
+                kept.push(childNode);
+            } else {
+                otherValue += nodeValue(child);
+                otherPct += child.percentage || 0;
+            }
+        });
+
+        if (otherValue > 0) {
+            kept.push({
+                name: config[nextDepth],
+                value: otherValue,
+                percentage: otherPct
+            });
+        }
+
+        return {
+            ...node,
+            children: kept
+        };
     }
 
     return walk(root, 0);

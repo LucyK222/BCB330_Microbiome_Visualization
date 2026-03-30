@@ -105,6 +105,44 @@
 <!-- ── COMPOSITION PANEL ── -->
 <div id="panel-composition" class="tab-panel">
   <div class="panel-title">Taxonomic Composition by Level (RPKM)</div>
+
+  <div class="krona-toggle">
+    <span>Data source:</span>
+    <label class="toggle-label">
+      <input type="radio" name="compositionMode" value="reads"> Read Counts
+    </label>
+    <label class="toggle-label">
+      <input type="radio" name="compositionMode" value="rpkm" checked> RPKM
+    </label>
+  </div>
+
+  <div class="slider-panel">
+    <div class="slider-group">
+      <label>Top <span id="comp-phylum">5</span> Phyla</label>
+      <input type="range" id="slider-comp-phylum" min="1" max="50" value="5">
+    </div>
+    <div class="slider-group">
+      <label>Top <span id="comp-class">5</span> Classes</label>
+      <input type="range" id="slider-comp-class" min="1" max="30" value="5">
+    </div>
+    <div class="slider-group">
+      <label>Top <span id="comp-order">5</span> Orders</label>
+      <input type="range" id="slider-comp-order" min="1" max="50" value="5">
+    </div>
+    <div class="slider-group">
+      <label>Top <span id="comp-family">5</span> Families</label>
+      <input type="range" id="slider-comp-family" min="1" max="50" value="5">
+    </div>
+    <div class="slider-group">
+      <label>Top <span id="comp-genus">10</span> Genera</label>
+      <input type="range" id="slider-comp-genus" min="1" max="100" value="10">
+    </div>
+    <div class="slider-group">
+      <label>Top <span id="comp-species">20</span> Species</label>
+      <input type="range" id="slider-comp-species" min="1" max="200" value="20">
+    </div>
+  </div>
+
   <div class="composition-controls">
     <div class="control-group">
       <label for="select-fontsize">Label size:</label>

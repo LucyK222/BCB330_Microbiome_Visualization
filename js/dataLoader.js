@@ -18,6 +18,7 @@ import { state } from '/js/state.js';
 const cache = {
     taxaReads:    null,   // taxa_complete.json
     taxaRpkm:     null,   // taxa_rpkm.json  (shared by Krona + Composition)
+    taxaReadsComp: null,  // taxa_complete.json
     rpkmTable:    null,   // RPKM_table.tsv
     ecPathway:    null,   // EC_pathway.txt
     pathwaySuper: null,   // pathway_to_superpathway.csv
@@ -69,6 +70,14 @@ export async function loadRpkmTree() {
         cache.taxaRpkm = await res.json();
     }
     return cache.taxaRpkm;
+}
+
+export async function loadReadsTree() {
+    if (!cache.taxaReadsComp) {
+        const res = await fetch('./data/taxa_complete.json');
+        cache.taxaReadsComp = await res.json();
+    }
+    return cache.taxaReadsComp;
 }
 
 /**
