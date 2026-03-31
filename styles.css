@@ -262,3 +262,206 @@ header p {
     padding: 6px 12px;
     cursor: pointer;
 }
+
+/* ── Description panel ─────────────────────────────────────── */
+
+#panel-description {
+    padding: 30px;
+}
+
+.desc-empty {
+    color: #888;
+    font-style: italic;
+    padding: 20px 0;
+}
+
+/* Masonry-ish two-column grid */
+.desc-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: start;
+}
+
+.desc-card {
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    padding: 22px 24px;
+}
+
+.desc-card.wide {
+    grid-column: 1 / -1;
+}
+
+.desc-card-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #2c3e50;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.desc-icon {
+    font-size: 0.7rem;
+    color: #1abc9c;
+}
+
+/* ── Index badges ── */
+.desc-indices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+}
+
+.desc-badge {
+    background: #f8fafb;
+    border-radius: 6px;
+    padding: 12px 16px;
+    min-width: 150px;
+    flex: 1;
+}
+
+.desc-badge-value {
+    font-size: 1.65rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+    font-family: 'Courier New', monospace;
+}
+
+.desc-badge-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #444;
+    margin-top: 4px;
+}
+
+.desc-badge-note {
+    font-size: 0.72rem;
+    color: #888;
+    margin-top: 2px;
+    font-style: italic;
+}
+
+/* ── Summary table ── */
+.desc-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+
+.desc-table tr {
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.desc-table tr:last-child {
+    border-bottom: none;
+}
+
+.desc-table td {
+    padding: 8px 4px;
+    color: #555;
+}
+
+.desc-table td.desc-val {
+    text-align: right;
+    font-weight: 700;
+    color: #2c3e50;
+    font-family: 'Courier New', monospace;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Bar charts ── */
+.desc-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+
+.desc-bars-wide .desc-bar-row {
+    grid-template-columns: 220px 1fr 52px;
+}
+
+.desc-bar-row {
+    display: grid;
+    grid-template-columns: 160px 1fr 50px;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.82rem;
+}
+
+.desc-bar-name {
+    color: #444;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-style: italic;
+}
+
+.desc-bar-track {
+    background: #f0f4f8;
+    border-radius: 3px;
+    height: 12px;
+    overflow: hidden;
+}
+
+.desc-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s ease;
+    opacity: 0.82;
+}
+
+.desc-bar-pct {
+    text-align: right;
+    color: #888;
+    font-size: 0.78rem;
+    font-variant-numeric: tabular-nums;
+    font-family: 'Courier New', monospace;
+}
+
+/* Responsive: stack to 1 col on narrow screens */
+@media (max-width: 860px) {
+    .desc-grid {
+        grid-template-columns: 1fr;
+    }
+    .desc-card.wide {
+        grid-column: 1;
+    }
+}
+
+.desc-table {
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    margin-top: 10px;
+}
+
+.desc-table th {
+    text-align: left;
+    padding: 8px 16px;
+    border-bottom: 2px solid #ccc;
+    color: #2c3e50;
+}
+
+.desc-table td {
+    padding: 8px 16px;
+    border-bottom: 1px solid #eee;
+    color: #444;
+}
+
+.desc-table td.desc-value {
+    font-family: monospace;
+    font-weight: 700;
+    color: #2c3e50;
+}
+
+.desc-table td.desc-note {
+    color: #888;
+    font-style: italic;
+    font-size: 0.82rem;
+}

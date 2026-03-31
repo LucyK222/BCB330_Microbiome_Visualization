@@ -15,6 +15,7 @@ import { initComposition,
 import { drawHeatmap,
     drawHeatmapFiltered } from '/js/charts/heatmap.js';
 import { syncViolinToKrona } from '/js/sync.js';
+import { initDescription, drawDescription } from '/js/charts/description.js';
 
 
 // ── Tab switching ─────────────────────────────────────────────
@@ -28,8 +29,15 @@ function switchToTab(tabName) {
     document.getElementById(`panel-${tabName}`).classList.add('active');
 }
 
+// Draw description on first visit
 tabBtns.forEach(btn => {
-    btn.addEventListener('click', () => switchToTab(btn.dataset.tab));
+    btn.addEventListener('click', () => {
+        switchToTab(btn.dataset.tab);
+        if (btn.dataset.tab === 'description' && !state.loaded.description) {
+            state.loaded.description = true;
+            drawDescription();
+        }
+    });
 });
 
 // sync.js dispatches this to switch tabs without a circular import
@@ -106,3 +114,4 @@ drawViolin();
 rebuildKrona();
 drawComposition();
 drawHeatmap();
+initDescription();

@@ -15,6 +15,7 @@
 
 <div class="tab-bar">
   <button class="tab-btn" data-tab="upload">Upload</button>
+  <button class="tab-btn"        data-tab="description">Description</button>
   <button class="tab-btn active" data-tab="violin">Violin Plot</button>
   <button class="tab-btn"        data-tab="krona">Krona Chart</button>
   <button class="tab-btn"        data-tab="composition">Composition</button>
@@ -180,6 +181,14 @@
   <div class="panel-title">Upload Input Files</div>
 
   <div class="upload-block">
+    <label>Enzyme Coverage</label>
+    <div class="file-row">
+      <input type="file" id="ec_cover">
+      <span class="file-name">No file chosen</span>
+    </div>
+  </div>
+
+  <div class="upload-block">
     <label>RPKM File (sample 1)</label>
     <div class="file-row">
       <input type="file" id="rpkm-file1">
@@ -212,3 +221,9 @@
   </div>
 </div>
 </html>
+
+<!-- ── DESCRIPTION PANEL ── -->
+<div id="panel-description" class="tab-panel">
+  <div class="panel-title">Sample Overview</div>
+  <div id="description-content"></div>
+</div>
