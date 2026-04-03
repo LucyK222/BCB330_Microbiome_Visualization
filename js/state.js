@@ -10,6 +10,7 @@
 // ============================================================
 
 export const state = {
+    dataVersion: Date.now(),
 
     // ── Which tabs have been initialized (drawn for the first time) ──
     loaded: {

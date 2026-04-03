@@ -1,8 +1,14 @@
-import pandas as pd
 import json
+from pathlib import Path
+
+import pandas as pd
+
+ROOT = Path(__file__).resolve().parents[1]
+input_path = ROOT / "data" / "taxa_classifications_split.tsv"
+output_path = ROOT / "data" / "taxa_complete.json"
 
 # ---- 1. Load & clean ----
-df = pd.read_csv("../data/taxa_classifications_splited.tsv", sep="\t")
+df = pd.read_csv(input_path, sep="\t")
 
 # Fill empty taxonomy fields with "Unclassified X"
 df["Phylum"]  = df["Phylum"].replace("", pd.NA).fillna("Unclassified Phylum")
@@ -93,7 +99,6 @@ def build_hierarchy(df):
 full_hierarchy = build_hierarchy(summary)
 
 # ---- 4. Save ----
-output_path = "../data/taxa_complete.json"
 with open(output_path, "w") as f:
     json.dump(full_hierarchy, f, indent=2)
 

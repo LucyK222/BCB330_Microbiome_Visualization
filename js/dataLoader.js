@@ -10,6 +10,7 @@
 // TODO: fix the dependency of loading data (loadrpkmtree)
 
 import { state } from '/js/state.js';
+import { getAssetUrl } from '/js/assetPaths.js';
 
 // ── Internal cache ───────────────────────────────────────────
 // These are module-level variables, private to this file.
@@ -41,7 +42,7 @@ const cache = {
 export async function loadKronaData() {
     if (state.kronaMode === 'reads') {
         if (!cache.taxaReads) {
-            const res = await fetch('./data/taxa_complete.json');
+            const res = await fetch(getAssetUrl('./data/taxa_complete.json'));
             cache.taxaReads = await res.json();
         }
         return cache.taxaReads;
@@ -66,7 +67,7 @@ export async function loadKronaData() {
  */
 export async function loadRpkmTree() {
     if (!cache.taxaRpkm) {
-        const res = await fetch('./data/taxa_rpkm.json');
+        const res = await fetch(getAssetUrl('./data/taxa_rpkm.json'));
         cache.taxaRpkm = await res.json();
     }
     return cache.taxaRpkm;
@@ -74,7 +75,7 @@ export async function loadRpkmTree() {
 
 export async function loadReadsTree() {
     if (!cache.taxaReadsComp) {
-        const res = await fetch('./data/taxa_complete.json');
+        const res = await fetch(getAssetUrl('./data/taxa_complete.json'));
         cache.taxaReadsComp = await res.json();
     }
     return cache.taxaReadsComp;
@@ -93,13 +94,13 @@ export async function loadReadsTree() {
  */
 export async function loadViolinDatabases() {
     if (!cache.rpkmTable) {
-        cache.rpkmTable = await d3.tsv('databases/RPKM_table.tsv');
+        cache.rpkmTable = await d3.tsv(getAssetUrl('databases/RPKM_table.tsv'));
     }
     if (!cache.ecPathway) {
-        cache.ecPathway = await d3.text('databases/EC_pathway.txt');
+        cache.ecPathway = await d3.text(getAssetUrl('databases/EC_pathway.txt'));
     }
     if (!cache.pathwaySuper) {
-        cache.pathwaySuper = await d3.csv('databases/pathway_to_superpathway.csv');
+        cache.pathwaySuper = await d3.csv(getAssetUrl('databases/pathway_to_superpathway.csv'));
     }
 
     return {
@@ -107,4 +108,10 @@ export async function loadViolinDatabases() {
         ecPathwayRaw: cache.ecPathway,
         pathwayRows:  cache.pathwaySuper,
     };
+}
+
+export function resetDataCache() {
+    Object.keys(cache).forEach(key => {
+        cache[key] = null;
+    });
 }

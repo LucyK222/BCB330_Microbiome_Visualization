@@ -14,6 +14,7 @@
 
 import { state }         from '/js/state.js';
 import { loadKronaData } from '/js/dataLoader.js';
+import { getAssetUrl }   from '/js/assetPaths.js';
 
 
 // ── Collect species counts from the tree ─────────────────────
@@ -125,7 +126,7 @@ export async function drawDescription() {
 
         // ── Data ─────────────────────────────────────────────────
         // ── Load EC coverage from CSV ────────────────────────────────
-        const response = await fetch('/data/EC_coverage.csv');
+        const response = await fetch(getAssetUrl('/data/EC_coverage.csv'));
         const text     = await response.text();
         const lines    = text.trim().split('\n');
         const headers  = lines[0].split(',').slice(1).map(h => h.trim());

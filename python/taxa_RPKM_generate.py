@@ -1,8 +1,15 @@
-import pandas as pd
 import json
+from pathlib import Path
+
+import pandas as pd
+
+ROOT = Path(__file__).resolve().parents[1]
+taxa_complete_path = ROOT / "data" / "taxa_complete.json"
+rpkm_table_path = ROOT / "databases" / "RPKM_table.tsv"
+output_path = ROOT / "data" / "taxa_rpkm.json"
 
 # ── 1. Load the complete taxonomy tree ────────────────────────────────────────
-with open("../data/taxa_complete.json") as f:
+with open(taxa_complete_path) as f:
     taxa_complete = json.load(f)
 
 # ── 2. Build a flat lookup: node_name → ancestor path ─────────────────────────
@@ -21,9 +28,9 @@ for phylum_node in taxa_complete.get("children", []):
 print(f"Built lookup with {len(lookup)} unique taxon names")
 
 # ── 3. Load RPKM table ────────────────────────────────────────────────────────
-rpkm_df = pd.read_csv("../databases/RPKM_table.tsv", sep="\t", index_col=0)
+rpkm_df = pd.read_csv(rpkm_table_path, sep="\t", index_col=0)
 
-FIXED_COLS = {"Length", "Reads", "ECF", "RPKM", "Bacteria"}
+FIXED_COLS = {"GeneID", "EC#", "Length", "Reads", "ECF", "RPKM", "Bacteria"}
 taxon_cols = [c for c in rpkm_df.columns if c not in FIXED_COLS]
 print(f"Found {len(taxon_cols)} taxon columns: {taxon_cols}")
 
@@ -158,7 +165,6 @@ rpkm_hierarchy = {
 }
 
 # ── 6. Save ───────────────────────────────────────────────────────────────────
-output_path = "../data/taxa_rpkm.json"
 with open(output_path, "w") as f:
     json.dump(rpkm_hierarchy, f, indent=2)
 

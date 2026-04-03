@@ -1,4 +1,6 @@
 // ============================================================
+
+import { getAssetUrl } from '/js/assetPaths.js';
 //  heatmap.js — Taxon × Superpathway RPKM heatmap
 //
 //  Exports:
@@ -32,9 +34,9 @@ export async function drawHeatmapFiltered(taxonNames) {
 
 async function _drawHeatmapCore(filterSet) {
     const [raw, ecToMapText, superpathRows] = await Promise.all([
-        d3.tsv('databases/RPKM_table.tsv'),
-        d3.text('databases/EC_pathway.txt'),
-        d3.csv('databases/pathway_to_superpathway.csv'),
+        d3.tsv(getAssetUrl('databases/RPKM_table.tsv')),
+        d3.text(getAssetUrl('databases/EC_pathway.txt')),
+        d3.csv(getAssetUrl('databases/pathway_to_superpathway.csv')),
     ]);
 
     // --- Build EC → superpathway lookup ---

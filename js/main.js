@@ -4,6 +4,7 @@
 
 import { state }             from '/js/state.js';
 import {compInitSliders, initSliders} from '/js/sliders.js';
+import { resetDataCache }    from '/js/dataLoader.js';
 import { drawViolin }        from '/js/charts/violin.js';
 import { initKrona,
     rebuildKrona,
@@ -15,7 +16,8 @@ import { initComposition,
 import { drawHeatmap,
     drawHeatmapFiltered } from '/js/charts/heatmap.js';
 import { syncViolinToKrona } from '/js/sync.js';
-import { initDescription, drawDescription } from '/js/charts/description.js';
+import { initDescription, drawDescription } from '/js/charts/Description.js';
+import { initUploadPanel } from '/js/upload.js';
 
 
 // ── Tab switching ─────────────────────────────────────────────
@@ -42,6 +44,26 @@ tabBtns.forEach(btn => {
 
 // sync.js dispatches this to switch tabs without a circular import
 document.addEventListener('switchTab', e => switchToTab(e.detail));
+
+document.addEventListener('dataReloaded', async () => {
+    state.dataVersion = Date.now();
+    state.kronaData = null;
+    resetDataCache();
+    clearKronaSelection();
+
+    await Promise.all([
+        drawViolin(),
+        rebuildKrona(),
+        drawComposition(),
+        drawHeatmap(),
+    ]);
+
+    if (state.loaded.description) {
+        await drawDescription();
+    }
+
+    switchToTab('violin');
+});
 
 
 // ── Krona mode toggle ─────────────────────────────────────────
@@ -109,6 +131,7 @@ initSliders();
 initKrona();
 initComposition();
 compInitSliders()
+initUploadPanel();
 
 drawViolin();
 rebuildKrona();

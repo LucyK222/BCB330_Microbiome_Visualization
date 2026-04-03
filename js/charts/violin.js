@@ -1,4 +1,6 @@
 // ============================================================
+
+import { getAssetUrl } from '/js/assetPaths.js';
 //  violin.js — Violin + box plot chart with drag-to-select
 //              drill-down table
 //
@@ -99,9 +101,9 @@ function flattenWithSuperpathways(raw, ec_to_map, map_to_super) {
  */
 export async function drawViolin() {
     const [raw, ec_to_map, map_to_super] = await Promise.all([
-        d3.tsv('databases/RPKM_table.tsv'),
-        loadEcToMap('databases/EC_pathway.txt'),
-        loadMapToSuper('databases/pathway_to_superpathway.csv'),
+        d3.tsv(getAssetUrl('databases/RPKM_table.tsv')),
+        loadEcToMap(getAssetUrl('databases/EC_pathway.txt')),
+        loadMapToSuper(getAssetUrl('databases/pathway_to_superpathway.csv')),
     ]);
 
     const flatData = flattenWithSuperpathways(raw, ec_to_map, map_to_super);

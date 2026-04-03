@@ -172,18 +172,17 @@
   <div id="heatmap-chart" style="overflow-x: auto;"></div>
 </div>
 
-<script type="module" src="js/main.js"></script>
-
-</body>
-
 <!-- ── UPLOAD PANEL ── -->
 <div id="panel-upload" class="tab-panel">
   <div class="panel-title">Upload Input Files</div>
+  <p class="upload-note">
+    Single-sample mode is enabled right now. Upload the three required files, then click Load Data to overwrite the local project data and rebuild the derived JSON files before the charts refresh.
+  </p>
 
   <div class="upload-block">
     <label>Enzyme Coverage</label>
     <div class="file-row">
-      <input type="file" id="ec_cover">
+      <input type="file" id="ec-cover" accept=".csv,text/csv">
       <span class="file-name">No file chosen</span>
     </div>
   </div>
@@ -191,7 +190,7 @@
   <div class="upload-block">
     <label>RPKM File (sample 1)</label>
     <div class="file-row">
-      <input type="file" id="rpkm-file1">
+      <input type="file" id="rpkm-file1" accept=".tsv,.txt,text/tab-separated-values,text/plain">
       <span class="file-name">No file chosen</span>
     </div>
   </div>
@@ -199,31 +198,41 @@
   <div class="upload-block">
     <label>Taxa Classification File (sample 1)</label>
     <div class="file-row">
-      <input type="file" id="ec-file1">
+      <input type="file" id="taxa-file1" accept=".tsv,.txt,text/tab-separated-values,text/plain">
       <span class="file-name">No file chosen</span>
     </div>
   </div>
 
-  <div class="upload-block">
+  <div class="upload-block upload-block-disabled">
     <label>RPKM File (sample 2)</label>
     <div class="file-row">
-      <input type="file" id="rpkm-file2">
-      <span class="file-name">No file chosen</span>
+      <input type="file" id="rpkm-file2" disabled>
+      <span class="file-name">Single-sample mode only</span>
     </div>
   </div>
 
-  <div class="upload-block">
+  <div class="upload-block upload-block-disabled">
     <label>Taxa Classification File (sample 2)</label>
     <div class="file-row">
-      <input type="file" id="ec-file2">
-      <span class="file-name">No file chosen</span>
+      <input type="file" id="taxa-file2" disabled>
+      <span class="file-name">Single-sample mode only</span>
     </div>
   </div>
+
+  <div class="upload-actions">
+    <button id="btn-load-data" type="button">Load Data</button>
+  </div>
+
+  <p id="upload-status" class="upload-status" data-state="info"></p>
 </div>
-</html>
 
 <!-- ── DESCRIPTION PANEL ── -->
 <div id="panel-description" class="tab-panel">
   <div class="panel-title">Sample Overview</div>
   <div id="description-content"></div>
 </div>
+
+<script type="module" src="js/main.js"></script>
+
+</body>
+</html>

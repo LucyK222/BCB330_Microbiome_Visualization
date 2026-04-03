@@ -1,7 +1,13 @@
+from pathlib import Path
+
 import pandas as pd
 
+ROOT = Path(__file__).resolve().parents[1]
+input_path = ROOT / "data" / "taxa_classifications.tsv"
+output_path = ROOT / "data" / "taxa_classifications_split.tsv"
+
 # Load TSV file (no header)
-df = pd.read_csv("./data/taxa_classifications.tsv", sep="\t", header=None)
+df = pd.read_csv(input_path, sep="\t", header=None)
 
 # Rename columns for convenience
 df.columns = ["Status", "ReadID", "Taxonomy"]
@@ -45,4 +51,4 @@ taxonomy_cols.columns = [
 df = pd.concat([df, taxonomy_cols], axis=1)
 
 # Save output
-df.to_csv("./data/taxa_classifications_splited.tsv", sep="\t", index=False)
+df.to_csv(output_path, sep="\t", index=False)
